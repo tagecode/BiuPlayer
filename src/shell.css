@@ -363,6 +363,10 @@ body {
   .shell {
     grid-template-columns: 64px minmax(0, 1fr);
   }
+
+  .sidebar-resizer {
+    display: none;
+  }
   .sidebar {
     padding: 14px 8px;
   }
