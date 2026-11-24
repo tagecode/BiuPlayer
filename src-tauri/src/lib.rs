@@ -7,7 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use biu_core::AppPaths;
-use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick};
+use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, PlayerStateDto, TestTick};
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri::Manager;
@@ -27,12 +27,20 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::audio_devices,
             commands::system::app_paths,
             commands::system::export_diagnostics,
+            commands::player::player_open,
+            commands::player::player_play,
+            commands::player::player_pause,
+            commands::player::player_stop,
+            commands::player::player_seek,
+            commands::player::player_set_volume,
+            commands::player::player_snapshot,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
         .typ::<TestTick>()
         .typ::<AudioDevice>()
         .typ::<AppPathsInfo>()
+        .typ::<PlayerStateDto>()
 }
 
 #[derive(Clone)]
@@ -81,6 +89,8 @@ pub fn run() {
             );
             app.manage(guard);
             app.manage(AppPathsState(paths));
+            app.manage(commands::player::AudioPlayerState::default());
+            commands::player::spawn_player_events(app.handle().clone());
             println!("BiuPlayer logs: {}", log_dir.display());
             Ok(())
         })

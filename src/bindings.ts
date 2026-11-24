@@ -11,6 +11,13 @@ export const commands = {
 	audioDevices: (options?: InvokeOptions) => __TAURI_INVOKE<AudioDevice[]>("audio_devices", undefined, options),
 	appPaths: (options?: InvokeOptions) => __TAURI_INVOKE<AppPathsInfo>("app_paths", undefined, options),
 	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
+	playerOpen: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_open", { path }, options),
+	playerPlay: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_play", undefined, options),
+	playerPause: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_pause", undefined, options),
+	playerStop: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_stop", undefined, options),
+	playerSeek: (positionMs: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_seek", { positionMs }, options),
+	playerSetVolume: (volume: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_volume", { volume }, options),
+	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
 };
 
 /* Types */
@@ -55,6 +62,42 @@ export type PingReply = {
 	payload: string,
 	echo: string,
 	server_time_ms: number | null,
+};
+
+/**
+ *  Snapshot of the playback engine, shared by commands and the
+ *  `player:state` event.
+ */
+export type PlayerStateDto = PlayerStateDto_Serialize | PlayerStateDto_Deserialize;
+
+/**
+ *  Snapshot of the playback engine, shared by commands and the
+ *  `player:state` event.
+ */
+export type PlayerStateDto_Deserialize = {
+	state: string,
+	path?: string | null,
+	position_ms: number | null,
+	duration_ms: number | null,
+	sample_rate: number,
+	channels: number,
+	volume: number | null,
+	error?: string | null,
+};
+
+/**
+ *  Snapshot of the playback engine, shared by commands and the
+ *  `player:state` event.
+ */
+export type PlayerStateDto_Serialize = {
+	state: string,
+	path: string | null,
+	position_ms: number | null,
+	duration_ms: number | null,
+	sample_rate: number,
+	channels: number,
+	volume: number | null,
+	error: string | null,
 };
 
 export type TestTick = {

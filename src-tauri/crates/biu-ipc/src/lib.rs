@@ -88,3 +88,32 @@ impl std::fmt::Display for CommandError {
 }
 
 impl std::error::Error for CommandError {}
+
+/// Snapshot of the playback engine, shared by commands and the
+/// `player:state` event.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlayerStateDto {
+    pub state: String,
+    pub path: Option<String>,
+    pub position_ms: f64,
+    pub duration_ms: f64,
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub volume: f32,
+    pub error: Option<String>,
+}
+
+impl PlayerStateDto {
+    pub fn idle() -> Self {
+        Self {
+            state: "idle".to_string(),
+            path: None,
+            position_ms: 0.0,
+            duration_ms: 0.0,
+            sample_rate: 0,
+            channels: 0,
+            volume: 1.0,
+            error: None,
+        }
+    }
+}

@@ -41,3 +41,34 @@ fn rejects_oversized_event_burst_with_stable_code() {
     assert_eq!(json["code"], "E_INVALID_ARGUMENT");
     assert!(json["message"].as_str().unwrap().contains("10000"));
 }
+
+#[test]
+fn player_snapshot_is_idle_without_device() {
+    use tauri::Manager;
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+    app.manage(biuplayer_lib::commands::player::AudioPlayerState::default());
+
+    let snapshot = biuplayer_lib::commands::player::player_snapshot(app.state());
+    assert_eq!(snapshot.state, "idle");
+    assert_eq!(snapshot.position_ms, 0.0);
+}
+
+#[test]
+fn player_open_rejects_missing_file() {
+    use tauri::Manager;
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+    app.manage(biuplayer_lib::commands::player::AudioPlayerState::default());
+
+    let error = biuplayer_lib::commands::player::player_open(
+        "/definitely/not/a/track.mp3".to_string(),
+        app.state(),
+    )
+    .expect_err("missing file must fail");
+    assert_eq!(error.code, biu_ipc::error_codes::E_INVALID_ARGUMENT);
+}

@@ -49,8 +49,16 @@
 
 单元测试：状态码往返、44.1k→48k 重采样帧数、单声道复制到双声道，共 3 个通过。
 
+Tauri 接入：
+
+- `src-tauri/src/commands/player.rs`：`player_open`、`player_play`、`player_pause`、`player_stop`、`player_seek`、`player_set_volume`、`player_snapshot`。
+- `AudioPlayerState` 懒创建播放器，应用启动不打开音频设备；无播放器时返回 Idle 快照。
+- 后台线程以 4Hz 发 `player:state`，载荷 `PlayerStateDto`（state/path/position_ms/duration_ms/sample_rate/channels/volume/error）。
+- `player_open` 校验文件存在与 MVP 扩展名，音频设备错误映射 `E_AUDIO_DEVICE`，参数错误映射 `E_INVALID_ARGUMENT`。
+- `src-tauri/tests/ipc.rs` 新增 Idle 快照与缺失文件拒绝 2 个测试，IPC 共 5 个通过；`cargo clippy -D warnings` 通过。
+
 ## 未完成
 
 - A1-03：设备切换、热拔插 2 秒回退、独占/位完美未做；当前固定默认输出设备与默认采样率。
-- A1-04：音量已支持，但静音/队列未做；尚未接入 Tauri 命令与 `player:state` 事件。
-- 因此 A1 出口尚未关闭；下一步把 `Player` 接入 Tauri 命令/事件，再做队列与设备回退。
+- A1-04：音量已支持，但静音/队列未做；前端尚无播放控制 UI（P1 播放页实现）。
+- A1 出口尚未关闭；下一步队列与设备回退，再进入 L1 扫描入库。
