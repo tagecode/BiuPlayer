@@ -92,7 +92,7 @@ jobs:
           RUST_LOG: "info"
         run: |
           set +e
-          timeout --signal=TERM --kill-after=3 15s \
+          timeout --signal=TERM --kill-after=5 45s \
             xvfb-run -a src-tauri/target/release/biuplayer
           code=$?
           set -e
