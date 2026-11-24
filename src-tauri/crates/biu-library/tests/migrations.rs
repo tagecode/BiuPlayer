@@ -21,7 +21,9 @@ fn fresh_database_is_version_one_and_idempotent() {
         let db = Database::open(&path).unwrap();
         let version: i64 = db
             .connection()
-            .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0))
+            .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
         let tracks: i64 = db
@@ -30,13 +32,18 @@ fn fresh_database_is_version_one_and_idempotent() {
             .unwrap();
         assert_eq!(tracks, 0);
     }
-    assert!(!backup_path(&path).exists(), "fresh db must not be backed up");
+    assert!(
+        !backup_path(&path).exists(),
+        "fresh db must not be backed up"
+    );
 
     // Re-open must not re-run the migration or create a backup.
     let db = Database::open(&path).unwrap();
     let migrations: i64 = db
         .connection()
-        .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(migrations, 1);
     drop(db);
@@ -49,13 +56,16 @@ fn legacy_database_is_backed_up_before_migration() {
     let path = temp_db("legacy");
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch("CREATE TABLE legacy (id INTEGER);").unwrap();
+        conn.execute_batch("CREATE TABLE legacy (id INTEGER);")
+            .unwrap();
     }
 
     let db = Database::open(&path).unwrap();
     let version: i64 = db
         .connection()
-        .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0))
+        .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(version, SCHEMA_VERSION);
     drop(db);
@@ -95,7 +105,10 @@ fn newer_schema_is_rejected_not_downgraded() {
         Err(other) => panic!("expected SchemaTooNew, got {other}"),
         Ok(_) => panic!("expected SchemaTooNew, got a database"),
     }
-    assert!(!backup_path(&path).exists(), "must not touch a newer database");
+    assert!(
+        !backup_path(&path).exists(),
+        "must not touch a newer database"
+    );
     let _ = fs::remove_dir_all(path.parent().unwrap());
 }
 
