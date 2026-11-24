@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type PlaylistDto } from "../bindings";
-
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
-}
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 export function Playlists() {
+  const { t } = useI18n();
   const [items, setItems] = useState<PlaylistDto[]>([]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
@@ -21,45 +15,45 @@ export function Playlists() {
   }, []);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(errorText(error)));
+    refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh]);
 
   async function create() {
     const value = name.trim();
     if (!value) {
-      setMessage("请输入播放列表名称");
+      setMessage(t("playlists.namePrompt"));
       return;
     }
     try {
       await commands.playlistCreate(value);
       setName("");
       await refresh();
-      setMessage("已创建");
+      setMessage(t("playlists.created"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function rename(item: PlaylistDto) {
-    const value = window.prompt("新的名称", item.name)?.trim();
+    const value = window.prompt(t("playlists.renamePrompt"), item.name)?.trim();
     if (!value || value === item.name) return;
     try {
       if (item.id == null) return;
       await commands.playlistRename(item.id, value);
       await refresh();
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function remove(item: PlaylistDto) {
-    if (!window.confirm(`删除播放列表“${item.name}”？曲目不会从媒体库删除。`)) return;
+    if (!window.confirm(t("playlists.deleteConfirm", { name: item.name }))) return;
     try {
       if (item.id == null) return;
       await commands.playlistDelete(item.id);
       await refresh();
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -67,30 +61,30 @@ export function Playlists() {
     <section className="page">
       <header className="page-head">
         <div>
-          <h1>播放列表</h1>
-          <p className="muted">创建、重命名、删除，并进入列表调整曲目顺序。</p>
+          <h1>{t("pages.playlists.title")}</h1>
+          <p className="muted">{t("pages.playlists.desc")}</p>
         </div>
-        <span className="pill">{items.length} 个</span>
+        <span className="pill">{items.length} {t("common.playlistsSuffix")}</span>
       </header>
 
       <div className="playlist-create">
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="新播放列表名称"
+          placeholder={t("playlists.newPlaceholder")}
           onKeyDown={(event) => {
             if (event.key === "Enter") create();
           }}
         />
-        <button onClick={create}>创建</button>
+        <button onClick={create}>{t("common.create")}</button>
       </div>
 
       {message && <p className="notice">{message}</p>}
 
       {items.length === 0 ? (
         <div className="empty-card">
-          <strong>还没有播放列表</strong>
-          <span>输入名称创建一个，然后从媒体库添加曲目。</span>
+          <strong>{t("playlists.emptyTitle")}</strong>
+          <span>{t("playlists.emptyHint")}</span>
         </div>
       ) : (
         <ul className="playlist-list">
@@ -98,14 +92,14 @@ export function Playlists() {
             <li key={item.id} className="playlist-row">
               <Link className="playlist-link" to={`/playlists/${item.id}`}>
                 <strong>{item.name}</strong>
-                <span className="muted">{item.track_count} 首</span>
+                <span className="muted">{item.track_count} {t("common.tracksSuffix")}</span>
               </Link>
               <div className="row-actions">
                 <button className="ghost" onClick={() => rename(item)}>
-                  重命名
+                  {t("common.rename")}
                 </button>
                 <button className="ghost danger" onClick={() => remove(item)}>
-                  删除
+                  {t("common.delete")}
                 </button>
               </div>
             </li>

@@ -6,6 +6,8 @@ import {
   type PlaylistDto,
   type QueueItemDto_Serialize,
 } from "../bindings";
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 36;
@@ -13,15 +15,6 @@ const VIEWPORT_HEIGHT = 480;
 const OVERSCAN = 6;
 
 type TrackSort = "title" | "artist" | "album" | "duration" | "added";
-
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
-}
 
 function formatDuration(ms: number | null): string {
   if (!ms || ms <= 0) return "--:--";
@@ -40,6 +33,7 @@ function toQueueItem(track: LibraryTrackDto_Serialize): QueueItemDto_Serialize {
 }
 
 export function Library() {
+  const { t } = useI18n();
   const [folder, setFolder] = useState("");
   const [tracks, setTracks] = useState<Record<number, LibraryTrackDto_Serialize>>({});
   const [hits, setHits] = useState<LibraryTrackDto_Serialize[]>([]);
@@ -72,7 +66,7 @@ export function Library() {
   }, []);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(errorText(error)));
+    refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh]);
 
   useEffect(() => {
@@ -85,7 +79,7 @@ export function Library() {
       commands
         .librarySearch(value, 50)
         .then(setHits)
-        .catch((error) => setMessage(errorText(error)));
+        .catch((error) => setMessage(formatError(error, t)));
     }, 200);
     return () => window.clearTimeout(timer);
   }, [query]);
@@ -98,10 +92,10 @@ export function Library() {
         .then((status) => {
           setScan(status);
           if (status.state === "completed") {
-            refresh().catch((error) => setMessage(errorText(error)));
+            refresh().catch((error) => setMessage(formatError(error, t)));
           }
         })
-        .catch((error) => setMessage(errorText(error)));
+        .catch((error) => setMessage(formatError(error, t)));
     }, 500);
     return () => window.clearInterval(timer);
   }, [scan?.state, refresh]);
@@ -131,7 +125,7 @@ export function Library() {
             return next;
           });
         })
-        .catch((error) => setMessage(errorText(error)))
+        .catch((error) => setMessage(formatError(error, t)))
         .finally(() => inFlight.current.delete(offset));
     }
   }, [start, end, sort, descending, count, searching]);
@@ -153,15 +147,15 @@ export function Library() {
   async function startScan() {
     const path = folder.trim();
     if (!path) {
-      setMessage("先填写一个绝对路径");
+      setMessage(t("library.pathRequired"));
       return;
     }
     try {
       const status = await commands.libraryScanStart(path);
       setScan(status);
-      setMessage("扫描中…");
+      setMessage(t("library.scanning"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -169,25 +163,25 @@ export function Library() {
     try {
       setScan(await commands.libraryScanPause());
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function resumeScan() {
     try {
       setScan(await commands.libraryScanResume());
-      setMessage("继续扫描…");
+      setMessage(t("library.resuming"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function cancelScan() {
     try {
       setScan(await commands.libraryScanCancel());
-      setMessage("已取消，可稍后继续");
+      setMessage(t("library.cancelled"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -198,31 +192,31 @@ export function Library() {
       if (list.length === 0) return;
       const startIndex = Math.min(index - offset, list.length - 1);
       await commands.playerPlayQueue(list.map(toQueueItem), startIndex, "list_loop");
-      setMessage(`正在播放：${list[startIndex]?.title ?? ""}`);
+      setMessage(t("library.nowPlaying", { title: list[startIndex]?.title ?? "" }));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function playSingle(track: LibraryTrackDto_Serialize) {
     try {
       await commands.playerPlayQueue([toQueueItem(track)], 0, "list_loop");
-      setMessage(`正在播放：${track.title}`);
+      setMessage(t("library.nowPlaying", { title: track.title }));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   async function addToPlaylist(track: LibraryTrackDto_Serialize) {
     if (!targetPlaylist) {
-      setMessage("先创建一个播放列表");
+      setMessage(t("library.noPlaylist"));
       return;
     }
     try {
       const added = await commands.playlistAddTracks(Number(targetPlaylist), [track.id]);
-      setMessage((added ?? 0) > 0 ? `已加入：${track.title}` : "该曲目已在播放列表中");
+      setMessage((added ?? 0) > 0 ? t("library.added", { title: track.title }) : t("library.alreadyAdded"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -233,47 +227,51 @@ export function Library() {
     <section className="page">
       <div className="page-head">
         <span className="page-kicker">P-02</span>
-        <h2>媒体库</h2>
-        <p>{count.toLocaleString()} 首曲目 · 虚拟滚动</p>
+        <h2>{t("nav.library")}</h2>
+        <p>{t("library.count", { count: count.toLocaleString() })}</p>
       </div>
 
       <div className="card">
         <div className="card-head">
-          <h3>添加音乐目录</h3>
-          <span className="muted">仅扫描，不移动或删除源文件</span>
+          <h3>{t("library.addHeading")}</h3>
+          <span className="muted">{t("library.addHint")}</span>
         </div>
         <div className="library-add">
           <input
-            aria-label="音乐目录绝对路径"
+            aria-label={t("library.addPlaceholder")}
             placeholder="/Users/you/Music"
             value={folder}
             onChange={(event) => setFolder(event.target.value)}
             disabled={busy}
           />
           <button type="button" onClick={startScan} disabled={busy || scan?.state === "paused"}>
-            {busy ? "扫描中…" : "添加并扫描"}
+            {busy ? t("library.scanning") : t("library.addScan")}
           </button>
           {scan?.state === "scanning" && (
             <button type="button" className="ghost" onClick={pauseScan}>
-              暂停
+              {t("library.pause")}
             </button>
           )}
           {scan?.state === "paused" && (
             <button type="button" className="ghost" onClick={resumeScan}>
-              继续
+              {t("library.resume")}
             </button>
           )}
           {(scan?.state === "scanning" || scan?.state === "paused") && (
             <button type="button" className="ghost" onClick={cancelScan}>
-              取消
+              {t("common.cancel")}
             </button>
           )}
         </div>
         {message && <p className="library-message">{message}</p>}
         {scan && scan.state !== "idle" && (
           <p className="library-message">
-            扫描状态：{scan.state} · 发现 {scan.files_seen ?? 0} · 新增{" "}
-            {scan.inserted ?? 0} · 跳过 {scan.skipped ?? 0}
+            {t("library.scanStatus", {
+              state: scan.state,
+              seen: scan.files_seen ?? 0,
+              inserted: scan.inserted ?? 0,
+              skipped: scan.skipped ?? 0,
+            })}
             {scan.error ? ` · ${scan.error}` : ""}
           </p>
         )}
@@ -281,68 +279,68 @@ export function Library() {
 
       <div className="card">
         <div className="card-head">
-          <h3>曲目</h3>
+          <h3>{t("library.tracksHeading")}</h3>
           <div className="library-search">
             <input
-              aria-label="搜索曲目"
-              placeholder="搜索标题、艺术家、专辑或拼音"
+              aria-label={t("library.searchPlaceholder")}
+              placeholder={t("library.searchPlaceholder")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
             <button type="button" className="ghost" onClick={() => refresh()} disabled={busy}>
-              刷新
+              {t("common.refresh")}
             </button>
           </div>
         </div>
         <div className="library-playlist">
           <label>
-            目标播放列表
+            {t("library.targetPlaylist")}
             <select
               value={targetPlaylist}
               onChange={(event) => setTargetPlaylist(event.target.value)}
               disabled={playlists.length === 0}
             >
               {playlists.length === 0 ? (
-                <option value="">先创建播放列表</option>
+                <option value="">{t("library.createFirst")}</option>
               ) : (
                 playlists.map((item) => (
                   <option key={item.id} value={String(item.id)}>
-                    {item.name}（{item.track_count} 首）
+                    {t("library.playlistOption", { name: item.name, count: item.track_count ?? 0 })}
                   </option>
                 ))
               )}
             </select>
           </label>
-          <span className="muted">在曲目行点“加入”追加到所选列表</span>
+          <span className="muted">{t("library.addHint2")}</span>
         </div>
 
         {searching ? (
           hits.length === 0 ? (
-            <p className="muted">没有匹配的曲目，试试标题、艺术家、专辑或拼音首字母。</p>
+            <p className="muted">{t("library.noResults")}</p>
           ) : (
             <table className="track-table">
               <thead>
                 <tr>
-                  <th>标题</th>
-                  <th>艺术家</th>
-                  <th>专辑</th>
-                  <th>时长</th>
-                  <th>格式</th>
-                  <th aria-label="操作" />
+                  <th>{t("common.title")}</th>
+                  <th>{t("common.artist")}</th>
+                  <th>{t("common.album")}</th>
+                  <th>{t("common.duration")}</th>
+                  <th>{t("common.format")}</th>
+                  <th aria-label={t("common.actions")} />
                 </tr>
               </thead>
               <tbody>
                 {hits.map((track) => (
                   <tr key={track.path}>
                     <td title={track.path}>{track.title}</td>
-                    <td>{track.artist ?? "未知艺术家"}</td>
-                    <td>{track.album ?? "未知专辑"}</td>
+                    <td>{track.artist ?? t("player.unknownArtist")}</td>
+                    <td>{track.album ?? t("common.unknownAlbum")}</td>
                     <td>{formatDuration(track.duration_ms)}</td>
                     <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>
                     <td>
                       <div className="row-actions">
                         <button type="button" className="ghost" onClick={() => playSingle(track)}>
-                          播放
+                          {t("common.play")}
                         </button>
                         <button
                           type="button"
@@ -350,7 +348,7 @@ export function Library() {
                           onClick={() => addToPlaylist(track)}
                           disabled={playlists.length === 0}
                         >
-                          加入
+                          {t("common.add")}
                         </button>
                       </div>
                     </td>
@@ -360,16 +358,16 @@ export function Library() {
             </table>
           )
         ) : count === 0 ? (
-          <p className="muted">还没有曲目。添加一个包含音频文件的目录开始扫描。</p>
+          <p className="muted">{t("library.empty")}</p>
         ) : (
           <div className="track-virtual">
             <div className="track-head">
               {(
                 [
-                  ["title", "标题"],
-                  ["artist", "艺术家"],
-                  ["album", "专辑"],
-                  ["duration", "时长"],
+                  ["title", t("common.title")],
+                  ["artist", t("common.artist")],
+                  ["album", t("common.album")],
+                  ["duration", t("common.duration")],
                 ] as Array<[TrackSort, string]>
               ).map(([column, label]) => (
                 <button
@@ -382,7 +380,7 @@ export function Library() {
                   {sortMark(column)}
                 </button>
               ))}
-              <span className="mono">格式</span>
+              <span className="mono">{t("common.format")}</span>
               <span aria-hidden="true" />
             </div>
             <div
@@ -410,8 +408,8 @@ export function Library() {
                           <span className="track-title" title={track.path}>
                             {track.title}
                           </span>
-                          <span>{track.artist ?? "未知艺术家"}</span>
-                          <span>{track.album ?? "未知专辑"}</span>
+                          <span>{track.artist ?? t("player.unknownArtist")}</span>
+                          <span>{track.album ?? t("common.unknownAlbum")}</span>
                           <span className="mono">{formatDuration(track.duration_ms)}</span>
                           <span className="mono">
                             {track.format?.toUpperCase() ?? "-"}
@@ -422,7 +420,7 @@ export function Library() {
                               className="ghost"
                               onClick={() => playAt(index)}
                             >
-                              播放
+                              {t("common.play")}
                             </button>
                             <button
                               type="button"
@@ -430,12 +428,12 @@ export function Library() {
                               onClick={() => addToPlaylist(track)}
                               disabled={playlists.length === 0}
                             >
-                              加入
+                              {t("common.add")}
                             </button>
                           </span>
                         </>
                       ) : (
-                        <span className="track-placeholder">加载中…</span>
+                        <span className="track-placeholder">{t("common.loading")}…</span>
                       )}
                     </div>
                   );

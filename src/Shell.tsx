@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { formatError } from "./errors";
 import { NavLink, Outlet } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -45,14 +46,6 @@ function formatTime(ms: number | null | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
-}
 
 
 const AUDIO_EXTENSIONS = new Set([
@@ -163,7 +156,7 @@ export function Shell() {
         setPlayer(snapshot);
         setQueue(snapshotQueue);
       })
-      .catch((error) => setNotice(errorText(error)));
+      .catch((error) => setNotice(formatError(error, t)));
     return () => {
       disposed = true;
       unlisten?.();
@@ -175,7 +168,7 @@ export function Shell() {
       setNotice("");
       await action();
     } catch (error) {
-      setNotice(errorText(error));
+      setNotice(formatError(error, t));
     }
   }
 
@@ -203,17 +196,17 @@ export function Shell() {
             0,
             "list_loop",
           );
-          setNotice(`正在播放：${nameFromPath(audio[0])}`);
+          setNotice(t("shell.playingNotice", { name: nameFromPath(audio[0]) }));
         } catch (error) {
-          setNotice(errorText(error));
+          setNotice(formatError(error, t));
         }
       }
       if (folders.length > 0) {
         try {
           await commands.libraryScanStart(folders[0]);
-          setNotice(`已开始扫描：${folders[0]}`);
+          setNotice(t("shell.scanNotice", { path: folders[0] }));
         } catch (error) {
-          setNotice(errorText(error));
+          setNotice(formatError(error, t));
         }
       }
     };
@@ -270,7 +263,7 @@ export function Shell() {
           className="sidebar-resizer"
           role="separator"
           aria-orientation="vertical"
-          aria-label="调整侧栏宽度"
+          aria-label={t("shell.resizer")}
           onPointerDown={startSidebarResize}
         />
         <div className="sidebar-foot">
@@ -474,7 +467,7 @@ export function Shell() {
         </footer>
         {notice && <p className="player-notice">{notice}</p>}
       </div>
-      {dragging && <div className="drop-overlay">释放以播放音频，或扫描目录</div>}
+      {dragging && <div className="drop-overlay">{t("shell.dropOverlay")}</div>}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   type QueueSnapshotDto_Serialize,
 } from "../bindings";
 import { useI18n, type MessageKey } from "../i18n";
+import { formatError } from "../errors";
 
 const modes = ["sequential", "list_loop", "single_loop", "shuffle"] as const;
 type PlayMode = (typeof modes)[number];
@@ -21,15 +22,6 @@ function formatTime(ms: number | null | undefined): string {
   if (!ms || ms <= 0) return "0:00";
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
 }
 
 export function NowPlaying() {
@@ -57,7 +49,7 @@ export function NowPlaying() {
         setPlayer(snapshot);
         setQueue(snapshotQueue);
       })
-      .catch((error) => setMessage(errorText(error)));
+      .catch((error) => setMessage(formatError(error, t)));
     return () => {
       disposed = true;
       unlisten?.();
@@ -114,7 +106,7 @@ export function NowPlaying() {
       await action();
       setQueue(await commands.playerQueue());
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -123,8 +115,8 @@ export function NowPlaying() {
   const mode = (modes.includes(player?.mode as PlayMode) ? player?.mode : "sequential") as PlayMode;
   const duration = player?.duration_ms ?? 0;
   const position = Math.min(player?.position_ms ?? 0, duration || Number.MAX_SAFE_INTEGER);
-  const title = player?.title ?? "未在播放";
-  const artist = player?.artist ?? (hasTrack ? "未知艺术家" : "从媒体库选择一首歌");
+  const title = player?.title ?? t("player.none");
+  const artist = player?.artist ?? (hasTrack ? t("player.unknownArtist") : t("np.selectTrack"));
   const initial = title.trim().charAt(0).toUpperCase() || "♪";
 
   return (
@@ -141,7 +133,7 @@ export function NowPlaying() {
 
           <div className="np-progress">
             <input
-              aria-label="播放进度"
+              aria-label={t("np.seek")}
               type="range"
               min={0}
               max={Math.max(duration, 1)}
@@ -157,7 +149,7 @@ export function NowPlaying() {
 
           <div className="np-controls">
             <button className="ghost" onClick={() => run(() => commands.playerPrev())} disabled={!hasTrack}>
-              上一首
+              {t("player.prev")}
             </button>
             <button
               className="np-play"
@@ -167,7 +159,7 @@ export function NowPlaying() {
               {playing ? t("player.pause") : t("player.play")}
             </button>
             <button className="ghost" onClick={() => run(() => commands.playerNext())} disabled={!hasTrack}>
-              下一首
+              {t("player.next")}
             </button>
             <button
               className="ghost"
@@ -182,7 +174,7 @@ export function NowPlaying() {
             </button>
             <input
               className="np-volume"
-              aria-label="音量"
+              aria-label={t("np.volume")}
               type="range"
               min={0}
               max={1}
@@ -200,22 +192,25 @@ export function NowPlaying() {
       <div className="np-columns">
         <div className="np-card np-lyrics-card">
           <div className="card-head">
-            <h3>歌词</h3>
+            <h3>{t("np.lyrics")}</h3>
             <span className="pill">
               {lyrics
-                ? `${lyrics.lines.length} 行 · ${lyrics.source === "embedded" ? "内嵌" : "LRC"}`
+                ? t("np.lyricsMeta", {
+                    count: lyrics.lines.length,
+                    source: lyrics.source === "embedded" ? t("np.embedded") : "LRC",
+                  })
                 : lyricsLoading
-                  ? "加载中"
-                  : "无"}
+                  ? t("common.loading")
+                  : t("np.none")}
               {lyrics && lyricsOffset !== 0 ? ` · ${lyricsOffset > 0 ? "+" : ""}${lyricsOffset}ms` : ""}
             </span>
             <button className="ghost small" onClick={() => run(() => commands.desktopLyricsToggle())}>
-              桌面歌词
+              {t("np.desktopLyrics")}
             </button>
           </div>
-          {!hasTrack && <p className="muted">播放歌曲后自动加载同名 .lrc。</p>}
+          {!hasTrack && <p className="muted">{t("np.lyricsHint")}</p>}
           {hasTrack && !lyricsLoading && !lyrics && (
-            <p className="muted">未找到同名歌词文件（.lrc）。</p>
+            <p className="muted">{t("np.lyricsMissing")}</p>
           )}
           {lyrics && (
             <div className="np-lyrics" ref={lyricsRef}>
@@ -233,8 +228,8 @@ export function NowPlaying() {
         </div>
         <div className="np-card">
           <div className="card-head">
-            <h3>队列</h3>
-            <span className="pill">{queue?.items.length ?? 0} 首</span>
+            <h3>{t("np.queue")}</h3>
+            <span className="pill">{t("np.count", { count: queue?.items.length ?? 0 })}</span>
           </div>
           <ol className="np-queue">
             {(queue?.items ?? []).slice(0, 30).map((item, index) => (
@@ -245,10 +240,10 @@ export function NowPlaying() {
               >
                 <span className="muted">{index + 1}</span>
                 <span>{item.title}</span>
-                <span className="muted">{item.artist ?? "未知艺术家"}</span>
+                <span className="muted">{item.artist ?? t("player.unknownArtist")}</span>
               </li>
             ))}
-            {(!queue || queue.items.length === 0) && <li className="muted">队列为空</li>}
+            {(!queue || queue.items.length === 0) && <li className="muted">{t("np.queueEmpty")}</li>}
           </ol>
         </div>
       </div>

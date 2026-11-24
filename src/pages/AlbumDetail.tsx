@@ -8,17 +8,11 @@ import {
 } from "../bindings";
 import { AlbumCover } from "../components/AlbumCover";
 import { TrackTable } from "../components/TrackTable";
-
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
-}
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 export function AlbumDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const albumId = Number(id);
   const [album, setAlbum] = useState<AlbumDto | null>(null);
@@ -32,7 +26,7 @@ export function AlbumDetail() {
   }, [albumId]);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(errorText(error)));
+    refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh]);
 
   async function play(index: number) {
@@ -46,26 +40,26 @@ export function AlbumDetail() {
     try {
       await commands.playerPlayQueue(items, index, "list_loop");
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
   return (
     <section className="page">
       <header className="page-head album-head">
-        <AlbumCover albumId={albumId} title={album?.title ?? "专辑"} className="album-cover cover-large" />
+        <AlbumCover albumId={albumId} title={album?.title ?? t("common.album")} className="album-cover cover-large" />
         <div>
           <p className="breadcrumb">
-            <Link to="/library/albums">专辑</Link> / {album?.title ?? "加载中"}
+            <Link to="/library/albums">{t("common.album")}</Link> / {album?.title ?? t("common.loading")}
           </p>
-          <h1>{album?.title ?? "专辑"}</h1>
+          <h1>{album?.title ?? t("common.album")}</h1>
           <p className="muted">
-            {album?.artist ?? "未知艺术家"}
-            {album?.year ? ` · ${album.year}` : ""} · {tracks.length} 首
+            {album?.artist ?? t("player.unknownArtist")}
+            {album?.year ? ` · ${album.year}` : ""} · {tracks.length} {t("common.tracksSuffix")}
           </p>
         </div>
         <button onClick={() => play(0)} disabled={tracks.length === 0}>
-          播放专辑
+          {t("album.play")}
         </button>
       </header>
       {message && <p className="notice">{message}</p>}

@@ -7,8 +7,11 @@ import {
   type QueueItemDto_Serialize,
 } from "../bindings";
 import { TrackTable } from "../components/TrackTable";
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 export function ArtistDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const artistId = Number(id);
   const [artist, setArtist] = useState<ArtistDto | null>(null);
@@ -22,7 +25,7 @@ export function ArtistDetail() {
   }, [artistId]);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(String(error)));
+    refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh]);
 
   async function play(index: number) {
@@ -36,7 +39,7 @@ export function ArtistDetail() {
     try {
       await commands.playerPlayQueue(items, index, "list_loop");
     } catch (error) {
-      setMessage(String(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -45,13 +48,13 @@ export function ArtistDetail() {
       <header className="page-head">
         <div>
           <p className="breadcrumb">
-            <Link to="/library/artists">艺术家</Link> / {artist?.name ?? "加载中"}
+            <Link to="/library/artists">{t("pages.artists.title")}</Link> / {artist?.name ?? t("common.loading")}
           </p>
-          <h1>{artist?.name ?? "艺术家"}</h1>
-          <p className="muted">{tracks.length} 首曲目</p>
+          <h1>{artist?.name ?? t("pages.artists.title")}</h1>
+          <p className="muted">{tracks.length} {t("common.tracksSuffix")}</p>
         </div>
         <button onClick={() => play(0)} disabled={tracks.length === 0}>
-          播放全部
+          {t("common.playAll")}
         </button>
       </header>
       {message && <p className="notice">{message}</p>}

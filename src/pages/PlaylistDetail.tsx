@@ -6,15 +6,8 @@ import {
   type PlaylistItemDto_Serialize,
   type QueueItemDto_Serialize,
 } from "../bindings";
-
-function errorText(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const value = error as { code?: string; message?: string };
-    return value.code ? `${value.code}: ${value.message}` : String(value.message);
-  }
-  return String(error);
-}
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 function formatDuration(ms: number | null): string {
   if (!ms || ms <= 0) return "--:--";
@@ -33,6 +26,7 @@ function toQueue(items: PlaylistItemDto_Serialize[]): QueueItemDto_Serialize[] {
 }
 
 export function PlaylistDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const playlistId = Number(id);
   const [playlist, setPlaylist] = useState<PlaylistDto | null>(null);
@@ -50,7 +44,7 @@ export function PlaylistDetail() {
   }, [playlistId]);
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(errorText(error)));
+    refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh]);
 
   const queueItems = useMemo(() => toQueue(items), [items]);
@@ -59,9 +53,9 @@ export function PlaylistDetail() {
     if (queueItems.length === 0) return;
     try {
       await commands.playerPlayQueue(queueItems, startIndex, "list_loop");
-      setMessage("正在播放播放列表");
+      setMessage(t("playlist.playing"));
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -71,7 +65,7 @@ export function PlaylistDetail() {
       await commands.playlistMoveItem(playlistId, from, to);
       await refresh();
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -80,7 +74,7 @@ export function PlaylistDetail() {
       await commands.playlistRemoveItem(playlistId, position);
       await refresh();
     } catch (error) {
-      setMessage(errorText(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -89,14 +83,14 @@ export function PlaylistDetail() {
       <header className="page-head">
         <div>
           <p className="breadcrumb">
-            <Link to="/playlists">播放列表</Link> / {playlist?.name ?? "加载中"}
+            <Link to="/playlists">{t("pages.playlists.title")}</Link> / {playlist?.name ?? t("common.loading")}
           </p>
-          <h1>{playlist?.name ?? "播放列表"}</h1>
-          <p className="muted">{items.length} 首曲目</p>
+          <h1>{playlist?.name ?? t("pages.playlist.title")}</h1>
+          <p className="muted">{items.length} {t("common.tracksSuffix")}</p>
         </div>
         <div className="row-actions">
           <button onClick={() => play(0)} disabled={items.length === 0}>
-            播放
+            {t("common.play")}
           </button>
         </div>
       </header>
@@ -105,19 +99,19 @@ export function PlaylistDetail() {
 
       {items.length === 0 ? (
         <div className="empty-card">
-          <strong>列表还是空的</strong>
-          <span>去媒体库，把曲目加入这个播放列表。</span>
-          <Link to="/library">打开媒体库</Link>
+          <strong>{t("playlist.emptyTitle")}</strong>
+          <span>{t("playlist.emptyHint")}</span>
+          <Link to="/library">{t("common.openLibrary")}</Link>
         </div>
       ) : (
         <table className="track-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>标题</th>
-              <th>艺术家</th>
-              <th>专辑</th>
-              <th>时长</th>
+              <th>{t("common.title")}</th>
+              <th>{t("common.artist")}</th>
+              <th>{t("common.album")}</th>
+              <th>{t("common.duration")}</th>
               <th />
             </tr>
           </thead>
@@ -130,7 +124,7 @@ export function PlaylistDetail() {
                     {item.track.title}
                   </button>
                 </td>
-                <td>{item.track.artist ?? "未知艺术家"}</td>
+                <td>{item.track.artist ?? t("player.unknownArtist")}</td>
                 <td>{item.track.album ?? "—"}</td>
                 <td>{formatDuration(item.track.duration_ms)}</td>
                 <td>
@@ -142,7 +136,7 @@ export function PlaylistDetail() {
                       ↓
                     </button>
                     <button className="ghost danger" onClick={() => remove(index)}>
-                      移除
+                      {t("common.remove")}
                     </button>
                   </div>
                 </td>

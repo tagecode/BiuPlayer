@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n";
 import { commands } from "../bindings";
 
 const cache = new Map<number, string | null>();
@@ -12,6 +13,7 @@ export function AlbumCover({
   title: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [src, setSrc] = useState<string | null | undefined>(
     albumId == null ? null : cache.get(albumId),
   );
@@ -44,7 +46,7 @@ export function AlbumCover({
   return (
     <div className={className} aria-hidden={src ? undefined : true}>
       {src ? (
-        <img src={src} alt={`${title} 封面`} loading="lazy" />
+        <img src={src} alt={t("cover.alt", { title })} loading="lazy" />
       ) : (
         <span>{title.trim().charAt(0).toUpperCase() || "♪"}</span>
       )}

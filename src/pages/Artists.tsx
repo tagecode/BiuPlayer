@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type ArtistDto } from "../bindings";
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
 
 export function Artists() {
+  const { t } = useI18n();
   const [artists, setArtists] = useState<ArtistDto[]>([]);
   const [message, setMessage] = useState("");
 
@@ -10,7 +13,7 @@ export function Artists() {
     commands
       .libraryArtists()
       .then(setArtists)
-      .catch((error) => setMessage(String(error)));
+      .catch((error) => setMessage(formatError(error, t)));
   }, []);
 
   return (
@@ -18,17 +21,17 @@ export function Artists() {
       <header className="page-head">
         <div>
           <p className="page-kicker">P-05</p>
-          <h1>艺术家</h1>
-          <p className="muted">按艺术家浏览媒体库。</p>
+          <h1>{t("pages.artists.title")}</h1>
+          <p className="muted">{t("pages.artists.desc")}</p>
         </div>
-        <span className="pill">{artists.length} 位</span>
+        <span className="pill">{artists.length} {t("common.artistsSuffix")}</span>
       </header>
       {message && <p className="notice">{message}</p>}
       {artists.length === 0 ? (
         <div className="empty-card">
-          <strong>还没有艺术家</strong>
-          <span>扫描带艺术家标签的音乐目录后，这里会自动聚合。</span>
-          <Link to="/library">打开媒体库</Link>
+          <strong>{t("artists.emptyTitle")}</strong>
+          <span>{t("artists.emptyHint")}</span>
+          <Link to="/library">{t("common.openLibrary")}</Link>
         </div>
       ) : (
         <ul className="artist-list">
@@ -38,7 +41,7 @@ export function Artists() {
                 <span className="artist-avatar">{artist.name.trim().charAt(0).toUpperCase() || "?"}</span>
                 <span>
                   <strong>{artist.name}</strong>
-                  <span className="muted">{artist.track_count ?? 0} 首</span>
+                  <span className="muted">{artist.track_count ?? 0} {t("common.tracksSuffix")}</span>
                 </span>
               </Link>
             </li>

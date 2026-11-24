@@ -1,4 +1,5 @@
 import type { LibraryTrackDto_Serialize } from "../bindings";
+import { useI18n } from "../i18n";
 
 export function formatDuration(ms: number | null | undefined): string {
   if (!ms || ms <= 0) return "--:--";
@@ -13,19 +14,20 @@ export function TrackTable({
   tracks: LibraryTrackDto_Serialize[];
   onPlay: (index: number) => void;
 }) {
+  const { t } = useI18n();
   if (tracks.length === 0) {
-    return <p className="muted">这里还没有曲目。</p>;
+    return <p className="muted">{t("common.emptyTracks")}</p>;
   }
   return (
     <table className="track-table">
       <thead>
         <tr>
           <th>#</th>
-          <th>标题</th>
-          <th>艺术家</th>
-          <th>专辑</th>
-          <th>时长</th>
-          <th>格式</th>
+          <th>{t("common.title")}</th>
+          <th>{t("common.artist")}</th>
+          <th>{t("common.album")}</th>
+          <th>{t("common.duration")}</th>
+          <th>{t("common.format")}</th>
         </tr>
       </thead>
       <tbody>
@@ -37,7 +39,7 @@ export function TrackTable({
                 {track.title}
               </button>
             </td>
-            <td>{track.artist ?? "未知艺术家"}</td>
+            <td>{track.artist ?? t("player.unknownArtist")}</td>
             <td>{track.album ?? "—"}</td>
             <td>{formatDuration(track.duration_ms)}</td>
             <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>

@@ -10,6 +10,7 @@ import {
 } from "../bindings";
 import { useI18n, type Lang } from "../i18n";
 import { applyTheme } from "../theme";
+import { formatError } from "../errors";
 
 export function Settings() {
   const { t, lang, setLang } = useI18n();
@@ -32,7 +33,7 @@ export function Settings() {
         document.documentElement.style.setProperty("--ui-opacity", String(value.opacity ?? 1));
         void getCurrentWindow().setAlwaysOnTop(Boolean(value.alwaysOnTop)).catch(() => {});
       })
-      .catch((error) => setMessage(String(error)));
+      .catch((error) => setMessage(formatError(error, t)));
   }, []);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function Settings() {
       await commands.playerSetDevice(device === "default" ? null : device);
       setMessage(t("settings.deviceChanged"));
     } catch (error) {
-      setMessage(String(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -68,7 +69,7 @@ export function Settings() {
         document.documentElement.style.setProperty("--ui-opacity", String(patch.opacity));
       }
     } catch (error) {
-      setMessage(String(error));
+      setMessage(formatError(error, t));
     }
   }
 
@@ -280,7 +281,7 @@ export function Settings() {
               className="ghost"
               onClick={() =>
                 openUrl("https://github.com/tagecode/BiuPlayer/releases").catch((error) =>
-                  setMessage(String(error)),
+                  setMessage(formatError(error, t)),
                 )
               }
             >
@@ -291,7 +292,7 @@ export function Settings() {
               className="ghost"
               onClick={() =>
                 openUrl("https://github.com/tagecode/BiuPlayer/blob/main/LICENSE").catch(
-                  (error) => setMessage(String(error)),
+                  (error) => setMessage(formatError(error, t)),
                 )
               }
             >

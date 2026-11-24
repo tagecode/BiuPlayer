@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { commands, type LyricsDto_Serialize, type PlayerStateDto_Serialize } from "../bindings";
+import { useI18n } from "../i18n";
 
 export function DesktopLyrics() {
+  const { t } = useI18n();
   const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
   const [lyrics, setLyrics] = useState<LyricsDto_Serialize | null>(null);
   const [offset, setOffset] = useState(0);
@@ -82,14 +84,14 @@ export function DesktopLyrics() {
     <main className="desktop-lyrics" data-tauri-drag-region>
       <div className="desktop-lyrics-inner" data-tauri-drag-region>
         <p className="desktop-lyrics-title">
-          {player?.title ?? "博音 BiuPlayer"}
+          {player?.title ?? t("desktop.defaultTitle")}
           {player?.artist ? ` · ${player.artist}` : ""}
         </p>
         <p
           className="desktop-lyrics-current"
           style={{ fontSize: `${fontSize}px`, color }}
         >
-          {active?.text || (lyrics ? "♪" : "等待歌词…")}
+          {active?.text || (lyrics ? "♪" : t("desktop.waiting"))}
         </p>
         <p className="desktop-lyrics-next">{next?.text ?? ""}</p>
       </div>

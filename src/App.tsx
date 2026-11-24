@@ -3,19 +3,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { commands } from "./bindings";
 import type { AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick } from "./bindings";
 import "./App.css";
+import { useI18n } from "./i18n";
+import { formatError } from "./errors";
 
 const inTauri = "__TAURI_INTERNALS__" in window;
 
-function formatCommandError(err: unknown): string {
-  if (typeof err === "string") return err;
-  if (err && typeof err === "object" && "code" in err && "message" in err) {
-    const { code, message } = err as { code: unknown; message: unknown };
-    return `${String(code)}: ${String(message)}`;
-  }
-  return JSON.stringify(err);
-}
-
 function App() {
+  const { t } = useI18n();
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [infoError, setInfoError] = useState("");
   const [paths, setPaths] = useState<AppPathsInfo | null>(null);
@@ -28,23 +22,23 @@ function App() {
   const [burst, setBurst] = useState(0);
   const [received, setReceived] = useState(0);
   const [missing, setMissing] = useState(0);
-  const [eventStatus, setEventStatus] = useState("等待测试");
+  const [eventStatus, setEventStatus] = useState(t("m0.waiting"));
   const expectedRef = useRef(1);
   const receivedRef = useRef(0);
 
   useEffect(() => {
     if (!inTauri) {
-      setInfoError("浏览器预览模式：IPC 不可用");
+      setInfoError(t("m0.ipcUnavailable"));
       return;
     }
     commands
       .appInfo()
       .then(setInfo)
-      .catch((err) => setInfoError(formatCommandError(err)));
+      .catch((err) => setInfoError(formatError(err, t)));
     commands
       .appPaths()
       .then(setPaths)
-      .catch((err) => setInfoError(formatCommandError(err)));
+      .catch((err) => setInfoError(formatError(err, t)));
   }, []);
 
   useEffect(() => {
@@ -71,7 +65,7 @@ function App() {
     } catch (err) {
       setPingReply({
         payload: pingInput,
-        echo: `调用失败: ${formatCommandError(err)}`,
+        echo: t("m0.callFailed", { message: formatError(err, t) }),
         server_time_ms: null,
       });
     }
@@ -84,12 +78,12 @@ function App() {
     setReceived(0);
     setMissing(0);
     setBurst(count);
-    setEventStatus("发送中…");
+    setEventStatus(t("m0.sending"));
     try {
       const sent = await commands.emitTestEvents(count);
-      setEventStatus(`已发送 ${sent} 个事件，等待接收`);
+      setEventStatus(t("m0.sent", { count: sent }));
     } catch (err) {
-      setEventStatus(`发送失败: ${formatCommandError(err)}`);
+      setEventStatus(t("m0.sendFailed", { message: formatError(err, t) }));
     }
   }
 
@@ -98,7 +92,7 @@ function App() {
     try {
       setDiagPath(await commands.exportDiagnostics());
     } catch (err) {
-      setDiagError(formatCommandError(err));
+      setDiagError(formatError(err, t));
     }
   }
 
@@ -107,7 +101,7 @@ function App() {
     try {
       setDevices(await commands.audioDevices());
     } catch (err) {
-      setDeviceError(formatCommandError(err));
+      setDeviceError(formatError(err, t));
     }
   }
 
@@ -119,13 +113,13 @@ function App() {
         <div className="brand">
           <span className="brand-mark">Biu</span>
           <div>
-            <h1>博音 BiuPlayer</h1>
-            <p>M0 技术验证台 · 本地播放器</p>
+            <h1>{t("m0.title")}</h1>
+            <p>{t("m0.subtitle")}</p>
           </div>
         </div>
         <div className="chips">
           <span className={`chip ${inTauri ? "ok" : "warn"}`}>
-            {inTauri ? "Tauri 已连接" : "浏览器预览"}
+            {inTauri ? t("m0.connected") : t("m0.preview")}
           </span>
           <span className="chip">v{info?.version ?? "0.1.0"}</span>
         </div>
@@ -134,13 +128,13 @@ function App() {
       <main className="grid">
         <section className="card span-2">
           <div className="card-head">
-            <h2>运行环境</h2>
+            <h2>{t("m0.env")}</h2>
             <span className="muted">app_info</span>
           </div>
           {infoError && <p className="error">{infoError}</p>}
           <dl className="kv">
             <div>
-              <dt>应用</dt>
+              <dt>{t("m0.app")}</dt>
               <dd>{info?.name ?? "—"}</dd>
             </div>
             <div>
@@ -148,46 +142,46 @@ function App() {
               <dd>{info?.tauri_version ?? "—"}</dd>
             </div>
             <div>
-              <dt>平台</dt>
+              <dt>{t("m0.platform")}</dt>
               <dd>
                 {info ? `${info.os} / ${info.arch}` : "—"}
               </dd>
             </div>
             <div className="wide">
-              <dt>日志目录</dt>
+              <dt>{t("m0.logDir")}</dt>
               <dd className="mono">{paths?.log_dir ?? info?.log_dir ?? "—"}</dd>
             </div>
             <div className="wide">
-              <dt>数据目录</dt>
+              <dt>{t("m0.dataDir")}</dt>
               <dd className="mono">{paths?.data_dir ?? "—"}</dd>
             </div>
             <div>
-              <dt>便携模式</dt>
-              <dd>{paths ? (paths.portable ? "已启用" : "未启用") : "—"}</dd>
+              <dt>{t("m0.portable")}</dt>
+              <dd>{paths ? (paths.portable ? t("m0.enabled") : t("m0.disabled")) : "—"}</dd>
             </div>
           </dl>
           <div className="inline" style={{ marginTop: 12 }}>
             <button onClick={runDiagnostics} disabled={!inTauri}>
-              导出诊断包
+              {t("m0.exportDiag")}
             </button>
-            <span className="muted mono">{diagPath || "settings + 最近日志 + 系统信息"}</span>
+            <span className="muted mono">{diagPath || t("m0.diagHint")}</span>
           </div>
           {diagError && <p className="error">{diagError}</p>}
         </section>
 
         <section className="card">
           <div className="card-head">
-            <h2>IPC 往返</h2>
+            <h2>{t("m0.ping")}</h2>
             <span className="muted">app_ping</span>
           </div>
           <div className="inline">
             <input
               value={pingInput}
               onChange={(event) => setPingInput(event.currentTarget.value)}
-              placeholder="输入一段文本"
+              placeholder={t("m0.pingPlaceholder")}
             />
             <button onClick={runPing} disabled={!inTauri}>
-              发送
+              {t("m0.send")}
             </button>
           </div>
           <div className="result">
@@ -202,54 +196,54 @@ function App() {
 
         <section className="card">
           <div className="card-head">
-            <h2>事件通道</h2>
+            <h2>{t("m0.events")}</h2>
             <span className="muted">test:tick</span>
           </div>
           <p className="hint">
-            发送 1000 个事件并校验 seq 是否连续；用于验证事件不丢失、不乱序。
+            {t("m0.eventsHint")}
           </p>
           <div className="metrics">
             <div>
               <strong>{received}</strong>
-              <span>已接收</span>
+              <span>{t("m0.received")}</span>
             </div>
             <div>
               <strong>{burst}</strong>
-              <span>目标</span>
+              <span>{t("m0.target")}</span>
             </div>
             <div>
               <strong>{missing}</strong>
-              <span>乱序/缺口</span>
+              <span>{t("m0.missing")}</span>
             </div>
           </div>
           <button className="primary block" onClick={runBurst} disabled={!inTauri}>
-            发送 1000 事件
+            {t("m0.send1000")}
           </button>
           <p className={`status ${complete ? "ok" : ""}`}>
-            {complete ? "通过：1000/1000，无缺失" : eventStatus}
+            {complete ? t("m0.pass") : eventStatus}
           </p>
         </section>
 
         <section className="card span-2">
           <div className="card-head">
-            <h2>音频输出设备</h2>
+            <h2>{t("m0.devices")}</h2>
             <div className="inline">
               <span className="muted">cpal</span>
               <button onClick={loadDevices} disabled={!inTauri}>
-                枚举
+                {t("m0.enumerate")}
               </button>
             </div>
           </div>
           {deviceError && <p className="error">{deviceError}</p>}
           {devices.length === 0 ? (
-            <p className="hint">点击“枚举”读取系统输出设备与支持的采样率。</p>
+            <p className="hint">{t("m0.devicesHint")}</p>
           ) : (
             <ul className="devices">
               {devices.map((device) => (
                 <li key={device.name}>
                   <div>
                     <strong>{device.name}</strong>
-                    {device.is_default && <span className="badge">默认</span>}
+                    {device.is_default && <span className="badge">{t("m0.default")}</span>}
                   </div>
                   <span className="muted">
                     {device.channels}ch · {device.sample_formats.join("/")} ·{" "}
@@ -263,36 +257,36 @@ function App() {
 
         <section className="card span-2">
           <div className="card-head">
-            <h2>M0 验证清单</h2>
+            <h2>{t("m0.checklist")}</h2>
             <span className="muted">docs/reports</span>
           </div>
           <ul className="checklist">
             <li className="done">
-              <span>解码</span>
-              <p>symphonia 7/7：MP3、FLAC、WAV、AAC、ALAC、OGG、AIFF</p>
+              <span>{t("m0.decode")}</span>
+              <p>{t("m0.decodeDesc")}</p>
             </li>
             <li className="done">
-              <span>输出</span>
-              <p>cpal 44.1k / 48k 正弦波，默认设备与设备枚举</p>
+              <span>{t("m0.output")}</span>
+              <p>{t("m0.outputDesc")}</p>
             </li>
             <li className={complete ? "done" : ""}>
               <span>IPC</span>
-              <p>command 往返、类型绑定、1000 事件连续性</p>
+              <p>{t("m0.ipcDesc")}</p>
             </li>
             <li className={info?.log_dir ? "done" : ""}>
-              <span>日志</span>
-              <p>tracing 落盘到应用日志目录</p>
+              <span>{t("m0.log")}</span>
+              <p>{t("m0.logDesc")}</p>
             </li>
             <li className="done">
-              <span>扫描</span>
-              <p>SQLite 建表、FTS5 查询、10k 文件扫描基准</p>
+              <span>{t("m0.scan")}</span>
+              <p>{t("m0.scanDesc")}</p>
             </li>
           </ul>
         </section>
       </main>
 
       <footer className="footer">
-        <span>M0-01 / M0-02 / M0-03 / M0-04 验证台</span>
+        <span>{t("m0.footer")}</span>
         <span className="mono">biuplayer 0.1.0</span>
       </footer>
     </div>
