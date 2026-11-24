@@ -86,8 +86,12 @@ jobs:
           $out = "src-tauri/target/${{ matrix.target }}/release"
           New-Item -ItemType Directory -Force -Path "$out/portable" | Out-Null
           Copy-Item "$out/biuplayer.exe" "$out/portable/"
+          New-Item -ItemType File -Force -Path "$out/portable/portable.flag" | Out-Null
           if (Test-Path "$out/WebView2Loader.dll") {
             Copy-Item "$out/WebView2Loader.dll" "$out/portable/"
+          }
+          if (-not (Test-Path "$out/portable/portable.flag")) {
+            throw "portable.flag missing"
           }
           New-Item -ItemType Directory -Force -Path "$out/bundle" | Out-Null
           Compress-Archive -Path "$out/portable/*" -DestinationPath "$out/bundle/BiuPlayer_0.1.0_x64-portable.zip"
