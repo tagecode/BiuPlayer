@@ -109,6 +109,8 @@ pub struct PlayerStateDto {
     pub queue_index: Option<f64>,
     pub queue_len: f64,
     pub finished: bool,
+    pub device_lost: bool,
+    pub seq: f64,
 }
 
 impl PlayerStateDto {
@@ -130,6 +132,8 @@ impl PlayerStateDto {
             queue_index: None,
             queue_len: 0.0,
             finished: false,
+            device_lost: false,
+            seq: 0.0,
         }
     }
 }

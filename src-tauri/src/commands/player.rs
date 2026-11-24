@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -9,6 +10,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::queue::{AudioQueue, PlayMode};
 
 pub const PLAYER_STATE: &str = "player:state";
+
+static NEXT_SEQ: AtomicU64 = AtomicU64::new(1);
 
 /// Lazily created playback engine. Creating it opens the default output device,
 /// so the app can still start on machines without an audio device.
@@ -54,13 +57,15 @@ fn to_dto(snapshot: PlayerSnapshot, queue: &AudioQueue) -> PlayerStateDto {
         queue_index: queue.index().map(|index| index as f64),
         queue_len: queue.items().len() as f64,
         finished: snapshot.finished,
+        device_lost: snapshot.device_lost,
+        seq: 0.0,
     }
 }
 
 pub fn snapshot(state: &AudioPlayerState, queue: &AudioQueueState) -> PlayerStateDto {
     let guard = lock(state);
     let queue = queue_lock(queue);
-    match guard.as_ref() {
+    let mut dto = match guard.as_ref() {
         Some(player) => to_dto(snapshot_of(player), &queue),
         None => {
             let mut dto = PlayerStateDto::idle();
@@ -73,9 +78,12 @@ pub fn snapshot(state: &AudioPlayerState, queue: &AudioQueueState) -> PlayerStat
                 dto.artist = item.artist.clone();
                 dto.album = item.album.clone();
             }
+            dto.seq = NEXT_SEQ.fetch_add(1, Ordering::Relaxed) as f64;
             dto
         }
-    }
+    };
+    dto.seq = NEXT_SEQ.fetch_add(1, Ordering::Relaxed) as f64;
+    dto
 }
 
 fn control(
@@ -211,7 +219,12 @@ pub fn player_play_queue(
         return Err(CommandError::invalid_argument("queue is empty"));
     }
     for item in &items {
-        validate_item(item)?;
+        if !supported_extension(Path::new(&item.path)) {
+            return Err(CommandError::invalid_argument(format!(
+                "unsupported audio extension: {}",
+                item.path
+            )));
+        }
     }
     let start = start_index.max(0.0) as usize;
     if start >= items.len() {
@@ -397,33 +410,101 @@ pub fn player_snapshot(
     snapshot(&player, &queue_state)
 }
 
-/// Emits `player:state` at ~4 Hz. When a track reaches EOF, advances the queue
-/// according to the current mode before emitting the next snapshot.
+fn recover_output(
+    player_state: &AudioPlayerState,
+    queue_state: &AudioQueueState,
+) -> Result<(), String> {
+    let (path, position, muted) = {
+        let guard = lock(player_state);
+        let player = guard.as_ref().ok_or("no active player")?;
+        let snapshot = player.snapshot();
+        let path = snapshot.path.ok_or("no active track")?;
+        let muted = queue_lock(queue_state).muted();
+        (path, snapshot.position_ms, muted)
+    };
+
+    *lock(player_state) = None;
+    let player = Player::new().map_err(|err| err.to_string())?;
+    player.load(&path);
+    if muted {
+        player.set_volume(0.0);
+    }
+    player.play();
+    if position > 0 {
+        player.seek_ms(position);
+    }
+    *lock(player_state) = Some(player);
+    Ok(())
+}
+
+/// Emits `player:state` at ~4 Hz. Handles EOF auto-advance, bad-file skipping
+/// (up to three consecutive failures) and output-device loss recovery.
 pub fn spawn_player_events(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(250));
-        let player_state = app.state::<AudioPlayerState>();
-        let queue_state = app.state::<AudioQueueState>();
-        let current = snapshot(&player_state, &queue_state);
-        if current.finished {
-            let next = queue_lock(&queue_state).next_index();
-            match next {
-                Some(index) => {
-                    if let Err(err) = play_index(index, &player_state, &queue_state) {
-                        tracing::warn!(error = %err, "auto advance failed");
+    std::thread::spawn(move || {
+        let mut failures = 0u32;
+        let mut last_recovery = std::time::Instant::now();
+        loop {
+            std::thread::sleep(Duration::from_millis(250));
+            let player_state = app.state::<AudioPlayerState>();
+            let queue_state = app.state::<AudioQueueState>();
+            let current = snapshot(&player_state, &queue_state);
+
+            if current.device_lost {
+                if last_recovery.elapsed() >= Duration::from_secs(2) {
+                    last_recovery = std::time::Instant::now();
+                    match recover_output(&player_state, &queue_state) {
+                        Ok(()) => {
+                            failures = 0;
+                            tracing::warn!("output device lost; rebuilt default stream");
+                        }
+                        Err(err) => {
+                            tracing::error!(error = %err, "cannot rebuild output device");
+                        }
                     }
                 }
-                None => {
+            } else if current.finished {
+                failures = 0;
+                let next = queue_lock(&queue_state).next_index();
+                match next {
+                    Some(index) => {
+                        if let Err(err) = play_index(index, &player_state, &queue_state) {
+                            tracing::warn!(error = %err, "auto advance failed");
+                        }
+                    }
+                    None => {
+                        if let Some(player) = lock(&player_state).as_ref() {
+                            player.acknowledge_finished();
+                            player.stop();
+                        }
+                    }
+                }
+            } else if current.state == PlaybackState::Error.as_str() {
+                failures += 1;
+                tracing::warn!(
+                    path = %current.path.as_deref().unwrap_or("-"),
+                    error = %current.error.as_deref().unwrap_or("unknown"),
+                    failures,
+                    "playback failed"
+                );
+                if failures >= 3 {
+                    failures = 0;
                     if let Some(player) = lock(&player_state).as_ref() {
-                        player.acknowledge_finished();
                         player.stop();
                     }
+                    tracing::error!("stopped after three consecutive playback failures");
+                } else if let Some(index) = queue_lock(&queue_state).next_index() {
+                    if let Err(err) = play_index(index, &player_state, &queue_state) {
+                        tracing::warn!(error = %err, "skip after playback failure failed");
+                    }
                 }
+            } else if matches!(current.state.as_str(), "playing" | "paused" | "loading") {
+                failures = 0;
             }
-        }
-        let dto = snapshot(&player_state, &queue_state);
-        if app.emit(PLAYER_STATE, dto).is_err() {
-            break;
+
+            let dto = snapshot(&player_state, &queue_state);
+            if app.emit(PLAYER_STATE, dto).is_err() {
+                break;
+            }
         }
     });
 }

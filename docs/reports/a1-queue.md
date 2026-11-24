@@ -25,12 +25,15 @@
 
 `src-tauri/src/commands/player.rs`：
 
-- `player_play_queue(items, start_index, mode)`：替换队列并开始播放，校验文件存在与扩展名。
+- `player_play_queue(items, start_index, mode)`：替换队列并开始播放，只校验扩展名，不要求文件存在（坏文件进入播放错误并由自动切歌跳过）。
 - `player_next`、`player_prev`、`player_jump`、`player_set_mode`。
 - `player_queue`、`player_queue_add`、`player_queue_remove`、`player_queue_clear`。
 - `player_set_muted`；`player_set_volume` 自动解除静音。
 - `player:state` 载荷扩展：`title`、`artist`、`album`、`muted`、`mode`、`queue_index`、`queue_len`、`finished`。
 - 4Hz 事件线程检测 `finished` 后按模式自动切歌；顺序模式末尾停止并清除标记。
+- 连续播放失败最多跳过 3 个文件，随后停止并保留错误信息；成功进入 Playing/Paused 后失败计数清零。
+- cpal 错误回调置位 `device_lost`；事件线程每 2s 尝试重建默认输出流，恢复当前曲目与位置，静音状态保持。
+- `PlayerStateDto` 增加 `device_lost` 与单调递增 `seq`，前端可据此忽略乱序事件。
 - 播放队列状态 `AudioQueueState` 在 setup 初始化，路径为 `paths.data_dir/player-session.json`。
 
 ### 前端
@@ -53,7 +56,7 @@ pnpm build
 结果：
 
 - Rust 测试 42 个通过（含队列 4 个、IPC 8 个）。
-- 前端 `tsc && vite build` 通过，JS 351.05 kB / gzip 111.40 kB。
+- 前端 `tsc && vite build` 通过，JS 351.42 kB / gzip 111.55 kB。
 - `pnpm tauri dev` 启动成功，无 panic；队列状态与 sessions 文件初始化正常。
 
 ## 已知限制
@@ -62,4 +65,6 @@ pnpm build
 - 删除“正在播放”的队列项只调整队列索引，不立即切歌。
 - 队列面板不支持拖拽排序；无虚拟滚动，超大队列需后续优化。
 - 自动切歌依赖 4Hz 轮询，切歌延迟最多约 250ms。
-- 未做 E2E 自动点击验证；需在 Windows/macOS 真机补一次“连播 3 首 + 4 模式”手工冒烟。
+- 输出设备恢复为尽力而为：默认设备不可用时每 2s 重试，UI 仅显示提示；未在真机拔插 USB 声卡验证。
+- 坏文件跳过是“错误后切下一首”，不是预检；连续 3 个失败后停止，第 4 首好文件不会自动继续。
+- 未做 E2E 自动点击验证；需在 Windows/macOS 真机补一次“连播 3 首 + 4 模式 + 拔插声卡”手工冒烟。

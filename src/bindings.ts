@@ -163,6 +163,8 @@ export type PlayerStateDto_Deserialize = {
 	queue_index?: number | null,
 	queue_len: number | null,
 	finished: boolean,
+	device_lost: boolean,
+	seq: number | null,
 };
 
 /**
@@ -186,6 +188,8 @@ export type PlayerStateDto_Serialize = {
 	queue_index: number | null,
 	queue_len: number | null,
 	finished: boolean,
+	device_lost: boolean,
+	seq: number | null,
 };
 
 export type QueueItemDto = QueueItemDto_Serialize | QueueItemDto_Deserialize;

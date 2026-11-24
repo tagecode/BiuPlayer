@@ -77,6 +77,8 @@ pub struct PlayerSnapshot {
     pub error: Option<String>,
     /// True once the decoder reached EOF and the output buffer drained.
     pub finished: bool,
+    /// Set by the cpal error callback; the app must rebuild the output stream.
+    pub device_lost: bool,
 }
 
 struct Shared {
@@ -91,6 +93,7 @@ struct Shared {
     eof: AtomicBool,
     started: AtomicBool,
     finished: AtomicBool,
+    device_lost: AtomicBool,
     path: Mutex<Option<String>>,
     error: Mutex<Option<String>>,
 }
@@ -109,6 +112,7 @@ impl Shared {
             eof: AtomicBool::new(false),
             started: AtomicBool::new(false),
             finished: AtomicBool::new(false),
+            device_lost: AtomicBool::new(false),
             path: Mutex::new(None),
             error: Mutex::new(None),
         }
@@ -140,6 +144,7 @@ impl Shared {
             volume: f32::from_bits(self.volume.load(Ordering::Relaxed)),
             error: self.error.lock().unwrap().clone(),
             finished: self.finished.load(Ordering::Relaxed),
+            device_lost: self.device_lost.load(Ordering::Relaxed),
         }
     }
 }
@@ -362,7 +367,11 @@ impl Output {
         let rate = config.sample_rate.0;
         let channels = config.channels as usize;
 
-        let err_fn = |err| eprintln!("player output error: {err}");
+        let err_shared = shared.clone();
+        let err_fn = move |err| {
+            eprintln!("player output error: {err}");
+            err_shared.device_lost.store(true, Ordering::Relaxed);
+        };
         let stream = match sample_format {
             SampleFormat::F32 => build::<f32>(&device, &config, channels, shared, err_fn)?,
             SampleFormat::I16 => build::<i16>(&device, &config, channels, shared, err_fn)?,

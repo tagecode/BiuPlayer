@@ -220,7 +220,11 @@ export function Shell() {
             <div>
               <strong>{player?.title ?? t("player.none")}</strong>
               <p className="muted">
-                {player?.artist ?? (hasTrack ? t("player.unknownArtist") : t("player.hint"))}
+                {player?.device_lost
+                  ? t("player.deviceLost")
+                  : player?.error
+                    ? `${t("player.error")}: ${player.error}`
+                    : player?.artist ?? (hasTrack ? t("player.unknownArtist") : t("player.hint"))}
               </p>
             </div>
           </div>
