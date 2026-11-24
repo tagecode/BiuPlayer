@@ -18,6 +18,10 @@ export const commands = {
 	playerSeek: (positionMs: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_seek", { positionMs }, options),
 	playerSetVolume: (volume: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_volume", { volume }, options),
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
+	libraryAddFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanDto>("library_add_folder", { path }, options),
+	libraryTracks: (limit: number, offset: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_tracks", { limit, offset }, options),
+	libraryTrackCount: (options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_track_count", undefined, options),
+	librarySearch: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_search", { query, limit }, options),
 };
 
 /* Types */
@@ -56,6 +60,37 @@ export type AudioDevice = {
 export type CommandError = {
 	code: string,
 	message: string,
+};
+
+export type LibraryScanDto = {
+	files_seen: number | null,
+	inserted: number | null,
+	updated: number | null,
+	skipped: number | null,
+	elapsed_ms: number | null,
+	total_tracks: number | null,
+};
+
+export type LibraryTrackDto = LibraryTrackDto_Serialize | LibraryTrackDto_Deserialize;
+
+export type LibraryTrackDto_Deserialize = {
+	id: number | null,
+	title: string,
+	artist?: string | null,
+	album?: string | null,
+	duration_ms?: number | null,
+	format?: string | null,
+	path: string,
+};
+
+export type LibraryTrackDto_Serialize = {
+	id: number | null,
+	title: string,
+	artist: string | null,
+	album: string | null,
+	duration_ms: number | null,
+	format: string | null,
+	path: string,
 };
 
 export type PingReply = {

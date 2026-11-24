@@ -38,3 +38,44 @@ fn scan_inserts_and_searches() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn scan_reads_tags_and_lists_tracks() {
+    use lofty::config::WriteOptions;
+    use lofty::file::{AudioFile, TaggedFileExt};
+    use lofty::tag::{Accessor, Tag, TagType};
+
+    let root = temp_root();
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/audio/m0/tone.mp3");
+    let target = root.join("tagged.mp3");
+    std::fs::copy(source, &target).unwrap();
+
+    let mut tagged = lofty::read_from_path(&target).unwrap();
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.set_title("测试标题".to_string());
+    tag.set_artist("测试艺术家".to_string());
+    tag.set_album("测试专辑".to_string());
+    tag.set_track(3);
+    tag.set_year(2024);
+    tagged.insert_tag(tag);
+    tagged
+        .save_to_path(&target, WriteOptions::default())
+        .unwrap();
+
+    let mut db = Database::open(root.join("test.db")).unwrap();
+    let folder_id = db.add_folder(&root).unwrap();
+    db.scan_folder(folder_id, &root).unwrap();
+
+    let tracks = db.list_tracks(10, 0).unwrap();
+    assert_eq!(tracks.len(), 1);
+    let track = &tracks[0];
+    assert_eq!(track.title, "测试标题");
+    assert_eq!(track.artist.as_deref(), Some("测试艺术家"));
+    assert_eq!(track.album.as_deref(), Some("测试专辑"));
+    assert!(track.duration_ms.unwrap_or(0) >= 1900);
+    assert_eq!(track.format.as_deref(), Some("mp3"));
+
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}

@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import { Shell } from "./Shell";
+import { Library } from "./pages/Library";
 import { Placeholder } from "./pages/Placeholder";
 import { States } from "./pages/States";
 import type { MessageKey } from "./i18n";
@@ -14,7 +15,7 @@ export const router = createHashRouter([
     element: <Shell />,
     children: [
       { path: "/", element: page("P-01", "pages.nowPlaying.title", "pages.nowPlaying.desc") },
-      { path: "/library", element: page("P-02", "pages.library.title", "pages.library.desc") },
+      { path: "/library", element: <Library /> },
       { path: "/library/albums", element: page("P-03", "pages.albums.title", "pages.albums.desc") },
       { path: "/library/albums/:id", element: page("P-04", "pages.album.title", "pages.album.desc") },
       { path: "/library/artists", element: page("P-05", "pages.artists.title", "pages.artists.desc") },

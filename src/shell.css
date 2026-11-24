@@ -366,3 +366,50 @@ body {
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.library-add {
+  display: flex;
+  gap: 8px;
+}
+
+.library-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.library-message {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.track-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.track-table th,
+.track-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.track-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.track-table tbody tr:hover {
+  background: var(--panel-2);
+}

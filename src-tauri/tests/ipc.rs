@@ -72,3 +72,34 @@ fn player_open_rejects_missing_file() {
     .expect_err("missing file must fail");
     assert_eq!(error.code, biu_ipc::error_codes::E_INVALID_ARGUMENT);
 }
+
+#[test]
+fn library_add_folder_scans_fixtures() {
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+    use tauri::Manager;
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+    let database = biu_library::Database::open_in_memory().unwrap();
+    app.manage(biuplayer_lib::commands::library::LibraryState(Mutex::new(
+        Some(database),
+    )));
+
+    let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0");
+    let report = biuplayer_lib::commands::library::library_add_folder(
+        fixtures.display().to_string(),
+        app.state(),
+    )
+    .expect("scan fixtures");
+    assert_eq!(report.files_seen, 7.0);
+    assert_eq!(report.total_tracks, 7.0);
+
+    let tracks =
+        biuplayer_lib::commands::library::library_tracks(100, 0, app.state()).expect("list");
+    assert_eq!(tracks.len(), 7);
+    assert!(tracks
+        .iter()
+        .any(|track| track.format.as_deref() == Some("flac")));
+}

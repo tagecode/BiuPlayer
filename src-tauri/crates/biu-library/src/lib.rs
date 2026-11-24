@@ -1,6 +1,10 @@
 use std::path::Path;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use std::collections::HashMap;
+
+use lofty::file::{AudioFile, TaggedFileExt};
+use lofty::tag::Accessor;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -28,12 +32,117 @@ pub struct ScanReport {
     pub elapsed_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default)]
+struct TrackTags {
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
+    track_no: Option<u32>,
+    disc_no: Option<u32>,
+    genre: Option<String>,
+    year: Option<i32>,
+    duration_ms: Option<i64>,
+    sample_rate: Option<u32>,
+    channels: Option<u16>,
+    bitrate: Option<u32>,
+}
+
+fn read_tags(path: &Path) -> Option<TrackTags> {
+    let tagged = lofty::read_from_path(path).ok()?;
+    let properties = tagged.properties();
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+    Some(TrackTags {
+        title: tag
+            .and_then(|tag| tag.title())
+            .map(|value| value.to_string()),
+        artist: tag
+            .and_then(|tag| tag.artist())
+            .map(|value| value.to_string()),
+        album: tag
+            .and_then(|tag| tag.album())
+            .map(|value| value.to_string()),
+        track_no: tag.and_then(|tag| tag.track()),
+        disc_no: tag.and_then(|tag| tag.disk()),
+        genre: tag
+            .and_then(|tag| tag.genre())
+            .map(|value| value.to_string()),
+        year: tag.and_then(|tag| tag.year()).map(|value| value as i32),
+        duration_ms: Some(properties.duration().as_millis() as i64),
+        sample_rate: properties.sample_rate(),
+        channels: properties.channels().map(u16::from),
+        bitrate: properties.audio_bitrate(),
+    })
+}
+
+fn artist_id(
+    tx: &rusqlite::Transaction<'_>,
+    cache: &mut HashMap<String, i64>,
+    name: &str,
+) -> Result<i64, LibraryError> {
+    if let Some(id) = cache.get(name) {
+        return Ok(*id);
+    }
+    tx.execute(
+        "INSERT INTO artists(name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
+        params![name],
+    )?;
+    let id = tx.query_row(
+        "SELECT id FROM artists WHERE name = ?1",
+        params![name],
+        |row| row.get(0),
+    )?;
+    cache.insert(name.to_string(), id);
+    Ok(id)
+}
+
+fn album_id(
+    tx: &rusqlite::Transaction<'_>,
+    cache: &mut HashMap<(String, Option<i64>), i64>,
+    title: &str,
+    artist_id: Option<i64>,
+) -> Result<i64, LibraryError> {
+    let key = (title.to_string(), artist_id);
+    if let Some(id) = cache.get(&key) {
+        return Ok(*id);
+    }
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM albums WHERE title = ?1 AND artist_id IS ?2",
+            params![title, artist_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let id = match existing {
+        Some(id) => id,
+        None => {
+            tx.execute(
+                "INSERT INTO albums(title, artist_id) VALUES (?1, ?2)",
+                params![title, artist_id],
+            )?;
+            tx.last_insert_rowid()
+        }
+    };
+    cache.insert(key, id);
+    Ok(id)
+}
+
+#[derive(Debug, Clone)]
 pub struct TrackRow {
     pub id: i64,
     pub title: String,
     pub path: String,
     pub format: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrackListItem {
+    pub id: i64,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub format: Option<String>,
+    pub path: String,
 }
 
 pub struct Database {
@@ -270,6 +379,8 @@ impl Database {
         };
 
         let tx = self.conn.transaction()?;
+        let mut artist_cache: HashMap<String, i64> = HashMap::new();
+        let mut album_cache: HashMap<(String, Option<i64>), i64> = HashMap::new();
         for entry in WalkDir::new(root).follow_links(false).into_iter() {
             let entry = match entry {
                 Ok(entry) => entry,
@@ -318,19 +429,50 @@ impl Database {
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-            let title = path
-                .file_stem()
-                .and_then(|v| v.to_str())
-                .unwrap_or("")
-                .to_string();
+            let tags = read_tags(path);
+            let title = tags
+                .as_ref()
+                .and_then(|tags| tags.title.clone())
+                .or_else(|| {
+                    path.file_stem()
+                        .and_then(|v| v.to_str())
+                        .map(ToString::to_string)
+                })
+                .unwrap_or_default();
+
+            let artist_id = match tags.as_ref().and_then(|tags| tags.artist.as_deref()) {
+                Some(name) if !name.trim().is_empty() => {
+                    Some(artist_id(&tx, &mut artist_cache, name)?)
+                }
+                _ => None,
+            };
+            let album_id = match tags.as_ref().and_then(|tags| tags.album.as_deref()) {
+                Some(title) if !title.trim().is_empty() => {
+                    Some(album_id(&tx, &mut album_cache, title, artist_id)?)
+                }
+                _ => None,
+            };
 
             let changed = tx.execute(
                 "INSERT INTO tracks(
-                    folder_id, path, title, format, size_bytes, mtime, added_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'), datetime('now'))
+                    folder_id, path, title, artist_id, album_id, track_no, disc_no,
+                    genre, year, duration_ms, sample_rate, channels, bitrate,
+                    format, size_bytes, mtime, added_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                    datetime('now'), datetime('now'))
                  ON CONFLICT(path) DO UPDATE SET
                     folder_id = excluded.folder_id,
                     title = excluded.title,
+                    artist_id = excluded.artist_id,
+                    album_id = excluded.album_id,
+                    track_no = excluded.track_no,
+                    disc_no = excluded.disc_no,
+                    genre = excluded.genre,
+                    year = excluded.year,
+                    duration_ms = excluded.duration_ms,
+                    sample_rate = excluded.sample_rate,
+                    channels = excluded.channels,
+                    bitrate = excluded.bitrate,
                     format = excluded.format,
                     size_bytes = excluded.size_bytes,
                     mtime = excluded.mtime,
@@ -340,6 +482,16 @@ impl Database {
                     folder_id,
                     path.display().to_string(),
                     title,
+                    artist_id,
+                    album_id,
+                    tags.as_ref().and_then(|tags| tags.track_no),
+                    tags.as_ref().and_then(|tags| tags.disc_no),
+                    tags.as_ref().and_then(|tags| tags.genre.clone()),
+                    tags.as_ref().and_then(|tags| tags.year),
+                    tags.as_ref().and_then(|tags| tags.duration_ms),
+                    tags.as_ref().and_then(|tags| tags.sample_rate),
+                    tags.as_ref().and_then(|tags| tags.channels),
+                    tags.as_ref().and_then(|tags| tags.bitrate),
                     ext,
                     metadata.len() as i64,
                     mtime
@@ -374,6 +526,38 @@ impl Database {
                 title: row.get(1)?,
                 path: row.get(2)?,
                 format: row.get(3)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_tracks(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<TrackListItem>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE t.missing = 0
+             ORDER BY t.title COLLATE NOCASE, t.id
+             LIMIT ?1 OFFSET ?2",
+        )?;
+        let rows = stmt.query_map(params![limit as i64, offset as i64], |row| {
+            Ok(TrackListItem {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
             })
         })?;
         let mut out = Vec::new();

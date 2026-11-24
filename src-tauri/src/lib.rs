@@ -7,7 +7,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use biu_core::AppPaths;
-use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, PlayerStateDto, TestTick};
+use biu_ipc::{
+    AppInfo, AppPathsInfo, AudioDevice, LibraryScanDto, LibraryTrackDto, PingReply, PlayerStateDto,
+    TestTick,
+};
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri::Manager;
@@ -34,6 +37,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_seek,
             commands::player::player_set_volume,
             commands::player::player_snapshot,
+            commands::library::library_add_folder,
+            commands::library::library_tracks,
+            commands::library::library_track_count,
+            commands::library::library_search,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
@@ -41,6 +48,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<AudioDevice>()
         .typ::<AppPathsInfo>()
         .typ::<PlayerStateDto>()
+        .typ::<LibraryScanDto>()
+        .typ::<LibraryTrackDto>()
 }
 
 #[derive(Clone)]
@@ -88,8 +97,17 @@ pub fn run() {
                 "application paths resolved"
             );
             app.manage(guard);
+            let database_file = paths.database_file.clone();
             app.manage(AppPathsState(paths));
             app.manage(commands::player::AudioPlayerState::default());
+            let library = match biu_library::Database::open(&database_file) {
+                Ok(database) => Some(database),
+                Err(err) => {
+                    tracing::error!(error = %err, "failed to open library database");
+                    None
+                }
+            };
+            app.manage(commands::library::LibraryState(std::sync::Mutex::new(library)));
             commands::player::spawn_player_events(app.handle().clone());
             println!("BiuPlayer logs: {}", log_dir.display());
             Ok(())

@@ -117,3 +117,24 @@ impl PlayerStateDto {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct LibraryScanDto {
+    pub files_seen: f64,
+    pub inserted: f64,
+    pub updated: f64,
+    pub skipped: f64,
+    pub elapsed_ms: f64,
+    pub total_tracks: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct LibraryTrackDto {
+    pub id: f64,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration_ms: Option<f64>,
+    pub format: Option<String>,
+    pub path: String,
+}
