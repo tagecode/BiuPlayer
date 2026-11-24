@@ -329,6 +329,7 @@ export type SettingsDto = {
 	desktopLyricsColor: string,
 	audioDevice: string,
 	bitPerfect: boolean,
+	sidebarWidth: number | null,
 };
 
 export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
@@ -348,6 +349,7 @@ export type SettingsPatch_Deserialize = {
 	desktopLyricsColor?: string | null,
 	audioDevice?: string | null,
 	bitPerfect?: boolean | null,
+	sidebarWidth?: number | null,
 };
 
 export type SettingsPatch_Serialize = {
@@ -365,6 +367,7 @@ export type SettingsPatch_Serialize = {
 	desktopLyricsColor: string | null,
 	audioDevice: string | null,
 	bitPerfect: boolean | null,
+	sidebarWidth: number | null,
 };
 
 export type TestTick = {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -75,6 +75,37 @@ export function Shell() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(220);
+  const sidebarWidthRef = useRef(220);
+
+  useEffect(() => {
+    commands
+      .settingsGet()
+      .then((settings) => {
+        const width = Math.min(400, Math.max(160, settings.sidebarWidth || 220));
+        sidebarWidthRef.current = width;
+        setSidebarWidth(width);
+      })
+      .catch(() => {});
+  }, []);
+
+  function startSidebarResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebarWidthRef.current;
+    const move = (moveEvent: PointerEvent) => {
+      const width = Math.min(400, Math.max(160, startWidth + moveEvent.clientX - startX));
+      sidebarWidthRef.current = width;
+      setSidebarWidth(width);
+    };
+    const stop = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", stop);
+      void commands.settingsUpdate({ sidebarWidth: sidebarWidthRef.current }).catch(() => {});
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", stop);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -210,7 +241,7 @@ export function Shell() {
   const duration = player?.duration_ms ?? 0;
 
   return (
-    <div className="shell">
+    <div className="shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">Biu</span>
@@ -231,6 +262,13 @@ export function Shell() {
             </NavLink>
           ))}
         </nav>
+        <div
+          className="sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整侧栏宽度"
+          onPointerDown={startSidebarResize}
+        />
         <div className="sidebar-foot">
           <select
             className="lang-select"

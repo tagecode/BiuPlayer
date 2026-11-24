@@ -38,6 +38,7 @@ pub struct SettingsDto {
     pub desktop_lyrics_color: String,
     pub audio_device: String,
     pub bit_perfect: bool,
+    pub sidebar_width: f64,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -58,6 +59,7 @@ impl From<&Settings> for SettingsDto {
             desktop_lyrics_color: settings.lyrics.desktop_color.clone(),
             audio_device: settings.audio.device_id.clone(),
             bit_perfect: settings.audio.bit_perfect,
+            sidebar_width: settings.ui.sidebar_width as f64,
         }
     }
 }
@@ -79,6 +81,7 @@ pub struct SettingsPatch {
     pub desktop_lyrics_color: Option<String>,
     pub audio_device: Option<String>,
     pub bit_perfect: Option<bool>,
+    pub sidebar_width: Option<f64>,
 }
 
 #[tauri::command]
@@ -161,6 +164,12 @@ pub fn settings_update(
     }
     if let Some(value) = patch.bit_perfect {
         settings.audio.bit_perfect = value;
+    }
+    if let Some(value) = patch.sidebar_width {
+        if !(160.0..=400.0).contains(&value) {
+            return Err(CommandError::invalid_argument("sidebar width out of range"));
+        }
+        settings.ui.sidebar_width = value.round() as u32;
     }
     if let Some(value) = patch.desktop_lyrics_color {
         let valid = value.len() == 7
