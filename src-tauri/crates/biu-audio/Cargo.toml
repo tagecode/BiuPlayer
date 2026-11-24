@@ -1,0 +1,15 @@
+[package]
+name = "biu-audio"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "BiuPlayer decode and output spikes"
+
+[dependencies]
+biu-core = { path = "../biu-core" }
+symphonia = { version = "0.5.4", features = [
+  "mp3", "aac", "alac", "aiff", "isomp4", "ogg", "vorbis", "flac", "wav", "pcm",
+] }
+cpal = "0.15.3"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

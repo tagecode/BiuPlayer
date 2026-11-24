@@ -1,0 +1,11 @@
+[package]
+name = "biu-ipc"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "BiuPlayer IPC DTOs and error envelope"
+
+[dependencies]
+biu-core = { path = "../biu-core" }
+serde = { version = "1", features = ["derive"] }
+specta = { version = "=2.0.0-rc.28", features = ["derive"] }

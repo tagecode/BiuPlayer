@@ -1,0 +1,99 @@
+# 博音 BiuPlayer
+
+本地优先、离线可用的跨平台音乐播放器。目标是用 Tauri + Rust + React 做一款“现代版千千静听”：无损播放、本地媒体库、歌词、换肤与插件，不依赖在线曲库。
+
+- 中文名：博音音乐播放器
+- 英文名：BiuPlayer
+- 当前阶段：**M0 技术验证**（M0-01/02/03/04 已通过 macOS 本机验证；macOS x64 dmg 已产出，Windows/Linux 与 arm64 未完成）
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/Idea.md](docs/Idea.md) | 产品初衷与六条诉求 |
+| [docs/FeatureList.md](docs/FeatureList.md) | 168 项功能清单（P0/P1/P2） |
+| [docs/Prd.md](docs/Prd.md) | 产品需求：画像、场景、页面、FR、NFR |
+| [docs/Arch.md](docs/Arch.md) | 技术架构：crates、音频、库、IPC、插件、打包 |
+| [docs/Mvp.md](docs/Mvp.md) | MVP 范围、56 个任务、验收与门禁 |
+| [docs/reports/](docs/reports/) | M0 验证报告 |
+
+## 当前已验证
+
+| 能力 | 结果 |
+|---|---|
+| 解码 | 7/7：MP3、FLAC、WAV、AAC/M4A、ALAC、OGG、AIFF（symphonia） |
+| 输出 | macOS 44.1k/48k 正弦播放，设备枚举 |
+| IPC | 4 个命令、`test:tick` 事件、1000 事件无丢失 |
+| 日志 | tracing 按天落盘到系统日志目录 |
+| 媒体库 | SQLite + FTS5，1 万文件扫描 2.4s |
+| 前端 | React 19 + Vite 7 + TS 5.8，M0 验证台 |
+
+未验证：Windows/Linux 真机与安装包、macOS arm64、10 万曲库、真实标签/封面、独占输出、gapless。
+
+## 环境要求
+
+- Node.js 22、pnpm 10
+- Rust **1.99.1**（仓库 `rust-toolchain.toml` 已固定；specta 2.0.0-rc 需要该版本）
+- Tauri 2 系统依赖：macOS Xcode CLT；Windows WebView2 + MSVC；Ubuntu 22.04+ `libwebkit2gtk-4.1-dev` 等（见 `.github/workflows/ci.yml`）
+
+## 开发
+
+```bash
+pnpm install
+pnpm tauri dev
+```
+
+仅前端预览：
+
+```bash
+pnpm dev
+```
+
+> 浏览器里没有 Tauri IPC，验证台会显示“浏览器预览”。
+
+## 测试与检查
+
+```bash
+pnpm build
+
+cd src-tauri
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+音频夹具与探针：
+
+```bash
+cd src-tauri
+cargo run -p biu-audio --example probe -- ../fixtures/audio/m0/*
+cargo run -p biu-audio --example output_probe -- 44100
+cargo run -p biu-library --example scan_bench -- 10000
+```
+
+## 目录
+
+```text
+src/                     React 前端（M0 验证台）
+src/bindings.ts          tauri-specta 生成的类型与命令
+src-tauri/
+  crates/
+    biu-core/            路径校验、基础类型
+    biu-audio/           symphonia 解码 + cpal 输出
+    biu-library/         SQLite/FTS5 扫描与查询
+    biu-ipc/             IPC DTO
+  src/                   Tauri 入口、命令、日志、事件
+  tests/                 IPC 集成测试
+fixtures/audio/m0/       7 格式音频夹具
+docs/                    产品/架构/MVP/报告
+```
+
+## 下一步
+
+1. 在 Ubuntu 22.04 与 Windows 10/11 各做一次编译、启动、出声冒烟。
+2. 跑通 release 矩阵，产出 Windows zip/NSIS、macOS dual-arch dmg、Linux AppImage/deb/rpm。
+3. 关闭 M0 出口后进入 E1：应用外壳、路由、设置、扫描与曲库列表。
+
+## 许可
+
+代码计划采用 MIT OR Apache-2.0；依赖与音频格式的许可清单在发布前复核。
