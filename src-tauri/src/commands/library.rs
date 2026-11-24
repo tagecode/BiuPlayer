@@ -423,6 +423,58 @@ pub fn playlist_add_tracks(
 
 #[tauri::command]
 #[specta::specta]
+pub fn playlist_copy(
+    id: f64,
+    name: String,
+    state: State<'_, LibraryState>,
+) -> Result<f64, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    database
+        .copy_playlist(id as i64, &name)
+        .map(|value| value as f64)
+        .map_err(|err| CommandError::invalid_argument(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn playlist_remove_items(
+    id: f64,
+    positions: Vec<f64>,
+    state: State<'_, LibraryState>,
+) -> Result<f64, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    let values: Vec<i64> = positions.iter().map(|value| *value as i64).collect();
+    database
+        .remove_playlist_items(id as i64, &values)
+        .map(|count| count as f64)
+        .map_err(|err| CommandError::internal(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn playlist_reorder(
+    id: f64,
+    track_ids: Vec<f64>,
+    state: State<'_, LibraryState>,
+) -> Result<(), CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    let values: Vec<i64> = track_ids.iter().map(|value| *value as i64).collect();
+    database
+        .reorder_playlist_items(id as i64, &values)
+        .map_err(|err| CommandError::invalid_argument(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn playlist_remove_item(
     id: f64,
     position: f64,

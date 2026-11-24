@@ -72,3 +72,53 @@ fn playlist_crud_and_ordering() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn playlist_copy_bulk_remove_and_reorder() {
+    let root = temp_root();
+    for name in ["a.mp3", "b.mp3", "c.mp3"] {
+        std::fs::write(root.join(name), []).unwrap();
+    }
+    let mut db = Database::open_in_memory().unwrap();
+    let folder = db.add_folder(&root).unwrap();
+    db.scan_folder(folder, &root).unwrap();
+    let tracks = db.list_tracks(10, 0).unwrap();
+    let id = db.create_playlist("Source").unwrap();
+    db.add_tracks_to_playlist(id, &[tracks[0].id, tracks[1].id, tracks[2].id])
+        .unwrap();
+
+    let copied = db.copy_playlist(id, "Copy").unwrap();
+    assert_ne!(copied, id);
+    let items = db.playlist_items(copied).unwrap();
+    assert_eq!(items.len(), 3);
+    assert_eq!(items[0].track.path, tracks[0].path);
+    assert!(db
+        .copy_playlist(id, " ")
+        .unwrap_err()
+        .to_string()
+        .contains("empty"));
+
+    let ids: Vec<i64> = db
+        .playlist_items(id)
+        .unwrap()
+        .into_iter()
+        .map(|item| item.track.id)
+        .collect();
+    db.reorder_playlist_items(id, &[ids[2], ids[0], ids[1]])
+        .unwrap();
+    let items = db.playlist_items(id).unwrap();
+    assert_eq!(items[0].track.path, tracks[2].path);
+    assert!(db
+        .reorder_playlist_items(id, &[ids[0]])
+        .unwrap_err()
+        .to_string()
+        .contains("exactly"));
+
+    assert_eq!(db.remove_playlist_items(id, &[0, 2]).unwrap(), 2);
+    let items = db.playlist_items(id).unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].position, 0);
+
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}

@@ -394,6 +394,18 @@ pub fn player_queue_add(
 
 #[tauri::command]
 #[specta::specta]
+pub fn player_queue_play_next(
+    item: QueueItemDto,
+    queue_state: State<'_, AudioQueueState>,
+) -> Result<QueueSnapshotDto, CommandError> {
+    validate_item(&item)?;
+    let mut queue = queue_lock(&queue_state);
+    queue.insert_next(item);
+    Ok(queue.snapshot())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn player_queue_remove(
     index: f64,
     queue_state: State<'_, AudioQueueState>,

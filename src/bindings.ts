@@ -26,6 +26,7 @@ export const commands = {
 	playerSetMode: (mode: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_mode", { mode }, options),
 	playerQueue: (options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue", undefined, options),
 	playerQueueAdd: (item: QueueItemDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_add", { item }, options),
+	playerQueuePlayNext: (item: QueueItemDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_play_next", { item }, options),
 	playerQueueRemove: (index: number | null, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_remove", { index }, options),
 	playerQueueClear: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_queue_clear", undefined, options),
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
@@ -53,8 +54,11 @@ export const commands = {
 	playlistDelete: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_delete", { id }, options),
 	playlistItems: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlaylistItemDto_Serialize[]>("playlist_items", { id }, options),
 	playlistAddTracks: (id: number | null, trackIds: (number | null)[], options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_add_tracks", { id, trackIds }, options),
+	playlistCopy: (id: number | null, name: string, options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_copy", { id, name }, options),
 	playlistRemoveItem: (id: number | null, position: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_remove_item", { id, position }, options),
+	playlistRemoveItems: (id: number | null, positions: (number | null)[], options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_remove_items", { id, positions }, options),
 	playlistMoveItem: (id: number | null, from: number | null, to: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_move_item", { id, from, to }, options),
+	playlistReorder: (id: number | null, trackIds: (number | null)[], options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_reorder", { id, trackIds }, options),
 };
 
 /* Types */

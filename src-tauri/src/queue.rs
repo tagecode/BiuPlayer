@@ -108,6 +108,16 @@ impl AudioQueue {
         self.save();
     }
 
+    pub fn insert_next(&mut self, item: QueueItemDto) -> usize {
+        let at = match self.index {
+            Some(index) => (index + 1).min(self.items.len()),
+            None => 0,
+        };
+        self.items.insert(at, item);
+        self.save();
+        at
+    }
+
     pub fn remove(&mut self, index: usize) -> Option<QueueItemDto> {
         if index >= self.items.len() {
             return None;

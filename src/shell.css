@@ -759,3 +759,42 @@ body {
 .sidebar-resizer:hover {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
+
+.playlist-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.checkbox-cell {
+  width: 28px;
+  text-align: center;
+}
+
+.drag-cell {
+  cursor: grab;
+  user-select: none;
+  letter-spacing: -2px;
+}
+
+.playlist-table tbody tr.selected-row {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.playlist-table tbody tr.drop-target {
+  outline: 1px dashed var(--accent);
+  outline-offset: -2px;
+}

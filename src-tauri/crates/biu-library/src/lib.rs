@@ -1190,6 +1190,119 @@ impl Database {
         Ok(())
     }
 
+    pub fn copy_playlist(&self, id: i64, name: &str) -> Result<i64, LibraryError> {
+        let assigned = name.trim();
+        if assigned.is_empty() {
+            return Err(LibraryError::InvalidArgument(
+                "playlist name is empty".into(),
+            ));
+        }
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM playlists WHERE id = ?1)",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Err(LibraryError::InvalidArgument("playlist not found".into()));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "INSERT INTO playlists (name, created_at, updated_at)
+             VALUES (?1, datetime('now'), datetime('now'))",
+            params![assigned],
+        )?;
+        let new_id = tx.last_insert_rowid();
+        tx.execute(
+            "INSERT INTO playlist_items (playlist_id, track_id, position)
+             SELECT ?1, track_id, position FROM playlist_items
+             WHERE playlist_id = ?2 ORDER BY position",
+            params![new_id, id],
+        )?;
+        tx.commit()?;
+        Ok(new_id)
+    }
+
+    pub fn remove_playlist_items(&self, id: i64, positions: &[i64]) -> Result<usize, LibraryError> {
+        let mut wanted: Vec<i64> = positions.to_vec();
+        wanted.sort_unstable();
+        wanted.dedup();
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT track_id FROM playlist_items WHERE playlist_id = ?1 ORDER BY position",
+        )?;
+        let mut ids: Vec<i64> = stmt
+            .query_map(params![id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        drop(stmt);
+        if wanted
+            .iter()
+            .any(|pos| *pos < 0 || *pos >= ids.len() as i64)
+        {
+            return Err(LibraryError::InvalidArgument(
+                "position out of range".into(),
+            ));
+        }
+        let mut removed = 0usize;
+        for pos in wanted.into_iter().rev() {
+            ids.remove(pos as usize);
+            removed += 1;
+        }
+        tx.execute(
+            "DELETE FROM playlist_items WHERE playlist_id = ?1",
+            params![id],
+        )?;
+        for (position, track_id) in ids.iter().enumerate() {
+            tx.execute(
+                "INSERT INTO playlist_items (playlist_id, track_id, position)
+                 VALUES (?1, ?2, ?3)",
+                params![id, track_id, position as i64],
+            )?;
+        }
+        tx.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        tx.commit()?;
+        Ok(removed)
+    }
+
+    pub fn reorder_playlist_items(&self, id: i64, track_ids: &[i64]) -> Result<(), LibraryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT track_id FROM playlist_items WHERE playlist_id = ?1 ORDER BY position",
+        )?;
+        let existing: Vec<i64> = stmt
+            .query_map(params![id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        drop(stmt);
+        let mut sorted_existing = existing.clone();
+        let mut sorted_requested = track_ids.to_vec();
+        sorted_existing.sort_unstable();
+        sorted_requested.sort_unstable();
+        if sorted_existing != sorted_requested {
+            return Err(LibraryError::InvalidArgument(
+                "reorder must contain exactly the current playlist tracks".into(),
+            ));
+        }
+        tx.execute(
+            "DELETE FROM playlist_items WHERE playlist_id = ?1",
+            params![id],
+        )?;
+        for (position, track_id) in track_ids.iter().enumerate() {
+            tx.execute(
+                "INSERT INTO playlist_items (playlist_id, track_id, position)
+                 VALUES (?1, ?2, ?3)",
+                params![id, track_id, position as i64],
+            )?;
+        }
+        tx.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn move_playlist_item(&self, id: i64, from: i64, to: i64) -> Result<(), LibraryError> {
         let tx = self.conn.unchecked_transaction()?;
         let mut stmt = tx.prepare(

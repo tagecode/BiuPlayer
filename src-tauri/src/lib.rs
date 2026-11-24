@@ -47,6 +47,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_set_mode,
             commands::player::player_queue,
             commands::player::player_queue_add,
+            commands::player::player_queue_play_next,
             commands::player::player_queue_remove,
             commands::player::player_queue_clear,
             commands::player::player_snapshot,
@@ -74,8 +75,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::playlist_delete,
             commands::library::playlist_items,
             commands::library::playlist_add_tracks,
+            commands::library::playlist_copy,
             commands::library::playlist_remove_item,
+            commands::library::playlist_remove_items,
             commands::library::playlist_move_item,
+            commands::library::playlist_reorder,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
