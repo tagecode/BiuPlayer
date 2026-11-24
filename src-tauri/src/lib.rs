@@ -61,6 +61,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_album_tracks,
             commands::library::library_artists,
             commands::library::library_artist_tracks,
+            commands::library::library_album_cover,
             commands::library::playlist_list,
             commands::library::playlist_create,
             commands::library::playlist_rename,
@@ -134,13 +135,17 @@ pub fn run() {
             app.manage(guard);
             let database_file = paths.database_file.clone();
             let session_file = paths.data_dir.join("player-session.json");
+            let covers_dir = paths.data_dir.join("covers");
             app.manage(AppPathsState(paths));
             app.manage(commands::player::AudioPlayerState::default());
             app.manage(commands::player::AudioQueueState(std::sync::Mutex::new(
                 crate::queue::AudioQueue::new(session_file),
             )));
             let library = match biu_library::Database::open(&database_file) {
-                Ok(database) => Some(database),
+                Ok(mut database) => {
+                    database.set_cover_dir(&covers_dir);
+                    Some(database)
+                }
                 Err(err) => {
                     tracing::error!(error = %err, "failed to open library database");
                     None

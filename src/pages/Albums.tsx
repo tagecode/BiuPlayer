@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type AlbumDto } from "../bindings";
+import { AlbumCover } from "../components/AlbumCover";
 
 export function Albums() {
   const [albums, setAlbums] = useState<AlbumDto[]>([]);
@@ -34,9 +35,7 @@ export function Albums() {
         <div className="album-grid">
           {albums.map((album) => (
             <Link key={album.id} to={`/library/albums/${album.id}`} className="album-card">
-              <div className="album-cover">
-                <span>{album.title.trim().charAt(0).toUpperCase() || "♪"}</span>
-              </div>
+              <AlbumCover albumId={album.id} title={album.title} />
               <strong>{album.title}</strong>
               <span className="muted">{album.artist ?? "未知艺术家"}</span>
               <span className="muted">

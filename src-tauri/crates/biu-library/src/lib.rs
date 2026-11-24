@@ -136,6 +136,8 @@ struct TrackTags {
     sample_rate: Option<u32>,
     channels: Option<u16>,
     bitrate: Option<u32>,
+    cover: Option<Vec<u8>>,
+    cover_mime: Option<String>,
 }
 
 fn pinyin_parts(input: &str) -> (String, String, String) {
@@ -219,6 +221,14 @@ fn read_tags(path: &Path) -> Option<TrackTags> {
         sample_rate: properties.sample_rate(),
         channels: properties.channels().map(u16::from),
         bitrate: properties.audio_bitrate(),
+        cover: tag
+            .and_then(|tag| tag.pictures().first())
+            .map(|picture| picture.data().to_vec())
+            .filter(|bytes| bytes.len() <= 8 * 1024 * 1024),
+        cover_mime: tag
+            .and_then(|tag| tag.pictures().first())
+            .and_then(|picture| picture.mime_type())
+            .map(|mime| mime.as_str().to_string()),
     })
 }
 
@@ -331,6 +341,7 @@ pub struct ArtistSummary {
 
 pub struct Database {
     conn: Connection,
+    cover_dir: Option<std::path::PathBuf>,
 }
 
 /// Path of the pre-migration backup (`library.db.bak`).
@@ -391,10 +402,17 @@ impl Database {
         }
         prepare_existing(path)?;
         let conn = Connection::open(path)?;
-        let mut db = Self { conn };
+        let mut db = Self {
+            conn,
+            cover_dir: None,
+        };
         db.configure()?;
         db.migrate()?;
         Ok(db)
+    }
+
+    pub fn set_cover_dir(&mut self, dir: impl AsRef<Path>) {
+        self.cover_dir = Some(dir.as_ref().to_path_buf());
     }
 
     pub fn connection(&self) -> &Connection {
@@ -403,7 +421,10 @@ impl Database {
 
     pub fn open_in_memory() -> Result<Self, LibraryError> {
         let conn = Connection::open_in_memory()?;
-        let mut db = Self { conn };
+        let mut db = Self {
+            conn,
+            cover_dir: None,
+        };
         db.configure()?;
         db.migrate()?;
         Ok(db)
@@ -817,6 +838,39 @@ impl Database {
                 None => None,
             };
 
+            if let (Some(album), Some(cover_dir), Some(tags)) =
+                (album_id, self.cover_dir.as_deref(), tags.as_ref())
+            {
+                let existing: Option<String> = tx
+                    .query_row(
+                        "SELECT COALESCE(cover_path, '') FROM albums WHERE id = ?1",
+                        params![album],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                if existing.as_deref().unwrap_or("").is_empty() {
+                    if let Some(bytes) = tags.cover.as_deref() {
+                        let ext = match tags.cover_mime.as_deref() {
+                            Some("image/png") => "png",
+                            Some("image/gif") => "gif",
+                            Some("image/bmp") => "bmp",
+                            Some("image/tiff") => "tiff",
+                            _ => "jpg",
+                        };
+                        let hash = blake3::hash(bytes).to_hex().to_string();
+                        std::fs::create_dir_all(cover_dir)?;
+                        let file = cover_dir.join(format!("{hash}.{ext}"));
+                        if !file.exists() {
+                            std::fs::write(&file, bytes)?;
+                        }
+                        tx.execute(
+                            "UPDATE albums SET cover_path = ?1 WHERE id = ?2",
+                            params![file.to_string_lossy(), album],
+                        )?;
+                    }
+                }
+            }
+
             tx.execute(
                 "INSERT INTO tracks(
                     folder_id, path, title, search_text, artist_id, album_id, track_no, disc_no,
@@ -1175,6 +1229,18 @@ impl Database {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    pub fn album_cover_path(&self, id: i64) -> Result<Option<String>, LibraryError> {
+        let path: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT COALESCE(cover_path, '') FROM albums WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(path.filter(|value| !value.is_empty()))
     }
 
     pub fn album_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {

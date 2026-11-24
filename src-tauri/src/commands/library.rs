@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use base64::Engine;
 use biu_ipc::{
     AlbumDto, ArtistDto, CommandError, LibraryScanDto, LibraryScanStatusDto, LibraryTrackDto,
     PlaylistDto, PlaylistItemDto,
@@ -123,6 +124,9 @@ fn begin_scan(state: &LibraryState, root: PathBuf) -> Result<LibraryScanStatusDt
     std::thread::spawn(move || {
         let result = (|| {
             let mut database = Database::open(&database_file)?;
+            if let Some(parent) = database_file.parent() {
+                database.set_cover_dir(parent.join("covers"));
+            }
             let folder_id = database.add_folder(&root)?;
             database.scan_folder_controlled(folder_id, &root, &control, &progress)
         })();
@@ -515,4 +519,37 @@ pub fn library_artist_tracks(
         .artist_tracks(id as i64)
         .map_err(|err| CommandError::internal(err.to_string()))?;
     Ok(rows.into_iter().map(track_dto).collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_album_cover(
+    id: f64,
+    state: State<'_, LibraryState>,
+) -> Result<Option<String>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(None);
+    };
+    let Some(path) = database
+        .album_cover_path(id as i64)
+        .map_err(|err| CommandError::internal(err.to_string()))?
+    else {
+        return Ok(None);
+    };
+    let bytes = std::fs::read(&path).map_err(|err| CommandError::internal(err.to_string()))?;
+    let mime = match Path::new(&path)
+        .extension()
+        .and_then(|value| value.to_str())
+    {
+        Some("png") => "image/png",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        Some("tiff") => "image/tiff",
+        _ => "image/jpeg",
+    };
+    Ok(Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    )))
 }

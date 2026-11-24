@@ -52,3 +52,11 @@ DTO：`AlbumDto { id, title, artist, year, track_count }`、`ArtistDto { id, nam
 - 专辑/艺术家列表未分页、无虚拟滚动。
 - 艺术家详情只列曲目，未按专辑分组。
 - 未做 E2E。
+
+## 封面提取（后续补充）
+
+- 扫描时读取内嵌封面（≤8 MiB），用 BLAKE3 哈希命名写入 `<data_dir>/covers/<hash>.<ext>`，并更新 `albums.cover_path`；已有封面不重复写。
+- 新增 `Database::album_cover_path` 与命令 `library_album_cover(id)`，返回 `data:image/...;base64,...`，前端按需加载。
+- 前端新增 `src/components/AlbumCover.tsx`，专辑列表与专辑详情显示真实封面，失败回退首字母。
+- 测试 `embedded_cover_is_cached_once`：1×1 PNG 写入 ID3，扫描后文件存在且二次扫描不重复，通过。
+- 已知限制：仅取第一张图；不生成缩略图，直接返回原图 base64；大图会增加 IPC 负载，后续做多尺寸缓存。

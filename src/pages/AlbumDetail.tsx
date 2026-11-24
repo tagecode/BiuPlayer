@@ -6,6 +6,7 @@ import {
   type LibraryTrackDto_Serialize,
   type QueueItemDto_Serialize,
 } from "../bindings";
+import { AlbumCover } from "../components/AlbumCover";
 import { TrackTable } from "../components/TrackTable";
 
 function errorText(error: unknown): string {
@@ -51,7 +52,8 @@ export function AlbumDetail() {
 
   return (
     <section className="page">
-      <header className="page-head">
+      <header className="page-head album-head">
+        <AlbumCover albumId={albumId} title={album?.title ?? "专辑"} className="album-cover cover-large" />
         <div>
           <p className="breadcrumb">
             <Link to="/library/albums">专辑</Link> / {album?.title ?? "加载中"}

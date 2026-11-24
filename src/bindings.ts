@@ -41,6 +41,7 @@ export const commands = {
 	libraryAlbumTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_album_tracks", { id }, options),
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
+	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
 	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),
 	playlistCreate: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_create", { name }, options),
 	playlistRename: (id: number | null, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_rename", { id, name }, options),
