@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   commands,
+  type LyricsDto_Serialize,
   type PlayerStateDto_Serialize,
   type QueueSnapshotDto_Serialize,
 } from "../bindings";
@@ -36,6 +37,9 @@ export function NowPlaying() {
   const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
   const [queue, setQueue] = useState<QueueSnapshotDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
+  const [lyrics, setLyrics] = useState<LyricsDto_Serialize | null>(null);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const lyricsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -58,6 +62,43 @@ export function NowPlaying() {
       unlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    const path = player?.path;
+    if (!path) {
+      setLyrics(null);
+      return;
+    }
+    let disposed = false;
+    setLyricsLoading(true);
+    commands
+      .lyricsLoad(path)
+      .then((value) => {
+        if (!disposed) setLyrics(value);
+      })
+      .catch(() => {
+        if (!disposed) setLyrics(null);
+      })
+      .finally(() => {
+        if (!disposed) setLyricsLoading(false);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [player?.path]);
+
+  const positionForLyrics = player?.position_ms ?? 0;
+  const activeLine = lyrics
+    ? lyrics.lines.reduce(
+        (current, line, index) => ((line.timeMs ?? 0) <= positionForLyrics + 80 ? index : current),
+        -1,
+      )
+    : -1;
+
+  useEffect(() => {
+    const active = lyricsRef.current?.querySelector<HTMLElement>(".active");
+    active?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeLine]);
 
   async function run(action: () => Promise<unknown>) {
     try {
@@ -149,12 +190,30 @@ export function NowPlaying() {
       </div>
 
       <div className="np-columns">
-        <div className="np-card">
+        <div className="np-card np-lyrics-card">
           <div className="card-head">
             <h3>歌词</h3>
-            <span className="pill">即将支持</span>
+            <span className="pill">
+              {lyrics ? `${lyrics.lines.length} 行` : lyricsLoading ? "加载中" : "无"}
+            </span>
           </div>
-          <p className="muted">歌词窗口与 LRC 解析将在后续版本接入。</p>
+          {!hasTrack && <p className="muted">播放歌曲后自动加载同名 .lrc。</p>}
+          {hasTrack && !lyricsLoading && !lyrics && (
+            <p className="muted">未找到同名歌词文件（.lrc）。</p>
+          )}
+          {lyrics && (
+            <div className="np-lyrics" ref={lyricsRef}>
+              {lyrics.lines.map((line, index) => (
+                <button
+                  key={`${line.timeMs}-${index}`}
+                  className={index === activeLine ? "active" : ""}
+                  onClick={() => run(() => commands.playerSeek(line.timeMs ?? 0))}
+                >
+                  {line.text || "♪"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="np-card">
           <div className="card-head">

@@ -3,3 +3,5 @@ pub mod player;
 pub mod system;
 
 pub mod settings;
+
+pub mod lyrics;

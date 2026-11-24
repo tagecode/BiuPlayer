@@ -63,6 +63,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_artists,
             commands::library::library_artist_tracks,
             commands::library::library_album_cover,
+            commands::lyrics::lyrics_load,
             commands::settings::settings_get,
             commands::settings::settings_update,
             commands::library::playlist_list,

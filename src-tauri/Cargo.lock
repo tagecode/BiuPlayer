@@ -396,6 +396,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "biu-lyrics"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "biuplayer"
 version = "0.1.0"
 dependencies = [
@@ -404,6 +413,7 @@ dependencies = [
  "biu-core",
  "biu-ipc",
  "biu-library",
+ "biu-lyrics",
  "serde",
  "serde_json",
  "specta",

@@ -623,3 +623,8 @@ body {
 .setting-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .setting-row:last-child { border-bottom: 0; }
 .setting-row select, .setting-row input[type="number"] { max-width: 160px; }
+.np-lyrics-card { max-height: 320px; display: flex; flex-direction: column; }
+.np-lyrics { overflow-y: auto; padding: 4px 2px; scrollbar-width: thin; }
+.np-lyrics button { display: block; width: 100%; text-align: left; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1.5; cursor: pointer; }
+.np-lyrics button:hover { background: var(--panel-2); }
+.np-lyrics button.active { color: var(--text); background: var(--panel-2); font-weight: 600; }

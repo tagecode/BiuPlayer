@@ -22,6 +22,7 @@ tauri-build = { version = "2", features = [] }
 biu-core = { path = "crates/biu-core" }
 biu-audio = { path = "crates/biu-audio" }
 biu-library = { path = "crates/biu-library" }
+biu-lyrics = { path = "crates/biu-lyrics" }
 biu-ipc = { path = "crates/biu-ipc" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"

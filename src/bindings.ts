@@ -42,6 +42,7 @@ export const commands = {
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
+	lyricsLoad: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LyricsDto_Serialize | null>("lyrics_load", { path }, options),
 	settingsGet: (options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_get", undefined, options),
 	settingsUpdate: (patch: SettingsPatch_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_update", { patch }, options),
 	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),
@@ -167,6 +168,31 @@ export type LibraryTrackDto_Serialize = {
 	duration_ms: number | null,
 	format: string | null,
 	path: string,
+};
+
+export type LyricLineDto = {
+	timeMs: number | null,
+	text: string,
+};
+
+export type LyricsDto = LyricsDto_Serialize | LyricsDto_Deserialize;
+
+export type LyricsDto_Deserialize = {
+	title?: string | null,
+	artist?: string | null,
+	album?: string | null,
+	by?: string | null,
+	offsetMs: number | null,
+	lines: LyricLineDto[],
+};
+
+export type LyricsDto_Serialize = {
+	title: string | null,
+	artist: string | null,
+	album: string | null,
+	by: string | null,
+	offsetMs: number | null,
+	lines: LyricLineDto[],
 };
 
 export type PingReply = {
