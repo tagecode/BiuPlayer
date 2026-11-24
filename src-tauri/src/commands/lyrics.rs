@@ -18,6 +18,7 @@ pub struct LyricsDto {
     pub album: Option<String>,
     pub by: Option<String>,
     pub offset_ms: f64,
+    pub source: String,
     pub lines: Vec<LyricLineDto>,
 }
 
@@ -28,13 +29,17 @@ pub fn lyrics_load(path: String) -> Result<Option<LyricsDto>, CommandError> {
     if !audio.is_file() {
         return Err(CommandError::invalid_argument("audio file not found"));
     }
-    match biu_lyrics::load_sidecar(audio) {
-        Ok(lyrics) => Ok(Some(LyricsDto {
+    match biu_lyrics::load_for_audio(audio) {
+        Ok((lyrics, source)) => Ok(Some(LyricsDto {
             title: lyrics.title,
             artist: lyrics.artist,
             album: lyrics.album,
             by: lyrics.by,
             offset_ms: lyrics.offset_ms as f64,
+            source: match source {
+                biu_lyrics::LyricsSource::Sidecar => "sidecar".into(),
+                biu_lyrics::LyricsSource::Embedded => "embedded".into(),
+            },
             lines: lyrics
                 .lines
                 .into_iter()

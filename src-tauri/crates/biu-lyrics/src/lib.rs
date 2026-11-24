@@ -3,6 +3,7 @@
 use std::fmt;
 use std::path::Path;
 
+use lofty::file::TaggedFileExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,6 +46,31 @@ pub fn find_sidecar(audio: &Path) -> Option<std::path::PathBuf> {
         return Some(upper);
     }
     None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LyricsSource {
+    Sidecar,
+    Embedded,
+}
+
+/// Loads sidecar `.lrc` first, then falls back to the embedded lyrics tag.
+pub fn load_for_audio(audio: &Path) -> Result<(Lyrics, LyricsSource), LyricsError> {
+    if find_sidecar(audio).is_some() {
+        return Ok((load_sidecar(audio)?, LyricsSource::Sidecar));
+    }
+    let tagged = lofty::read_from_path(audio).map_err(|_| LyricsError::NotFound)?;
+    let tag = tagged
+        .primary_tag()
+        .or_else(|| tagged.first_tag())
+        .ok_or(LyricsError::NotFound)?;
+    let text = tag
+        .get_string(&lofty::tag::ItemKey::Lyrics)
+        .ok_or(LyricsError::NotFound)?;
+    if text.trim().is_empty() {
+        return Err(LyricsError::NotFound);
+    }
+    Ok((parse(text), LyricsSource::Embedded))
 }
 
 pub fn load_sidecar(audio: &Path) -> Result<Lyrics, LyricsError> {

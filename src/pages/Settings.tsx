@@ -134,6 +134,39 @@ export function Settings() {
         </div>
 
         <div className="settings-card">
+          <h3>歌词</h3>
+          <label className="setting-row">
+            <span>全局偏移（毫秒）</span>
+            <input
+              type="number"
+              min={-10000}
+              max={10000}
+              step={50}
+              value={settings.lyricsOffsetMs ?? 0}
+              onChange={(event) => update({ lyricsOffsetMs: Number(event.target.value) })}
+            />
+          </label>
+          <label className="setting-row">
+            <span>桌面歌词字号</span>
+            <input
+              type="number"
+              min={16}
+              max={96}
+              value={settings.desktopLyricsFontSize ?? 32}
+              onChange={(event) => update({ desktopLyricsFontSize: Number(event.target.value) })}
+            />
+          </label>
+          <label className="setting-row">
+            <span>桌面歌词颜色</span>
+            <input
+              type="color"
+              value={settings.desktopLyricsColor ?? "#f5f7fa"}
+              onChange={(event) => update({ desktopLyricsColor: event.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="settings-card">
           <h3>界面</h3>
           <label className="setting-row">
             <span>列表密度</span>

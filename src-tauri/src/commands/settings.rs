@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use biu_core::Settings;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, State};
 
 use biu_ipc::CommandError;
 
@@ -33,6 +33,9 @@ pub struct SettingsDto {
     pub resume_on_start: bool,
     pub list_density: String,
     pub reduce_motion: bool,
+    pub lyrics_offset_ms: f64,
+    pub desktop_lyrics_font_size: f64,
+    pub desktop_lyrics_color: String,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -48,6 +51,9 @@ impl From<&Settings> for SettingsDto {
             resume_on_start: settings.playback.resume_on_start,
             list_density: settings.ui.list_density.clone(),
             reduce_motion: settings.ui.reduce_motion,
+            lyrics_offset_ms: settings.lyrics.offset_ms as f64,
+            desktop_lyrics_font_size: settings.lyrics.font_size as f64,
+            desktop_lyrics_color: settings.lyrics.desktop_color.clone(),
         }
     }
 }
@@ -64,6 +70,9 @@ pub struct SettingsPatch {
     pub resume_on_start: Option<bool>,
     pub list_density: Option<String>,
     pub reduce_motion: Option<bool>,
+    pub lyrics_offset_ms: Option<f64>,
+    pub desktop_lyrics_font_size: Option<f64>,
+    pub desktop_lyrics_color: Option<String>,
 }
 
 #[tauri::command]
@@ -75,6 +84,7 @@ pub fn settings_get(state: State<'_, SettingsState>) -> SettingsDto {
 #[tauri::command]
 #[specta::specta]
 pub fn settings_update(
+    app: tauri::AppHandle,
     patch: SettingsPatch,
     state: State<'_, SettingsState>,
 ) -> Result<SettingsDto, CommandError> {
@@ -126,8 +136,35 @@ pub fn settings_update(
     if let Some(value) = patch.reduce_motion {
         settings.ui.reduce_motion = value;
     }
+    if let Some(value) = patch.lyrics_offset_ms {
+        if !(-10_000.0..=10_000.0).contains(&value) {
+            return Err(CommandError::invalid_argument("lyrics offset out of range"));
+        }
+        settings.lyrics.offset_ms = value.round() as i32;
+    }
+    if let Some(value) = patch.desktop_lyrics_font_size {
+        if !(16.0..=96.0).contains(&value) {
+            return Err(CommandError::invalid_argument(
+                "lyrics font size out of range",
+            ));
+        }
+        settings.lyrics.font_size = value.round() as u32;
+    }
+    if let Some(value) = patch.desktop_lyrics_color {
+        let valid = value.len() == 7
+            && value.starts_with('#')
+            && value[1..].chars().all(|c| c.is_ascii_hexdigit());
+        if !valid {
+            return Err(CommandError::invalid_argument(
+                "lyrics color must be #RRGGBB",
+            ));
+        }
+        settings.lyrics.desktop_color = value;
+    }
 
     biu_core::save_settings(&state.path, settings)
         .map_err(|err| CommandError::internal(err.to_string()))?;
-    Ok(SettingsDto::from(&*settings))
+    let dto = SettingsDto::from(&*settings);
+    let _ = app.emit("settings:changed", ());
+    Ok(dto)
 }

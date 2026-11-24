@@ -400,6 +400,7 @@ name = "biu-lyrics"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "lofty",
  "serde",
  "thiserror 2.0.21",
 ]
@@ -414,6 +415,7 @@ dependencies = [
  "biu-ipc",
  "biu-library",
  "biu-lyrics",
+ "lofty",
  "serde",
  "serde_json",
  "specta",

@@ -49,3 +49,29 @@ fn returns_none_without_sidecar() {
         .is_none());
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn falls_back_to_embedded_lyrics() {
+    use lofty::file::{AudioFile, TaggedFileExt};
+    use lofty::tag::ItemKey;
+
+    let dir = temp_dir();
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0/tone.mp3");
+    let audio = dir.join("embedded.mp3");
+    fs::copy(&source, &audio).unwrap();
+    let mut tagged = lofty::read_from_path(&audio).unwrap();
+    tagged
+        .primary_tag_mut()
+        .unwrap()
+        .insert_text(ItemKey::Lyrics, "[00:01.00]内嵌第一行".to_string());
+    tagged
+        .save_to_path(&audio, lofty::config::WriteOptions::default())
+        .unwrap();
+
+    let lyrics = lyrics_load(audio.to_string_lossy().into_owned())
+        .unwrap()
+        .expect("embedded lyrics");
+    assert_eq!(lyrics.source, "embedded");
+    assert_eq!(lyrics.lines[0].text, "内嵌第一行");
+    fs::remove_dir_all(&dir).unwrap();
+}

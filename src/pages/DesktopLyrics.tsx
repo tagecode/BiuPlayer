@@ -5,6 +5,9 @@ import { commands, type LyricsDto_Serialize, type PlayerStateDto_Serialize } fro
 export function DesktopLyrics() {
   const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
   const [lyrics, setLyrics] = useState<LyricsDto_Serialize | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [fontSize, setFontSize] = useState(32);
+  const [color, setColor] = useState("#f5f7fa");
 
   useEffect(() => {
     let disposed = false;
@@ -17,6 +20,31 @@ export function DesktopLyrics() {
     });
     commands.playerSnapshot().then((value) => {
       if (!disposed) setPlayer(value);
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const loadStyle = () => {
+      commands
+        .settingsGet()
+        .then((settings) => {
+          if (disposed) return;
+          setOffset(settings.lyricsOffsetMs ?? 0);
+          setFontSize(settings.desktopLyricsFontSize ?? 32);
+          setColor(settings.desktopLyricsColor ?? "#f5f7fa");
+        })
+        .catch(() => {});
+    };
+    loadStyle();
+    listen("settings:changed", loadStyle).then((stop) => {
+      if (disposed) stop();
+      else unlisten = stop;
     });
     return () => {
       disposed = true;
@@ -42,7 +70,8 @@ export function DesktopLyrics() {
   const position = player?.position_ms ?? 0;
   const activeIndex = lyrics
     ? lyrics.lines.reduce(
-        (current, line, index) => ((line.timeMs ?? 0) <= position + 80 ? index : current),
+        (current, line, index) =>
+          (line.timeMs ?? 0) <= position + 80 + offset ? index : current,
         -1,
       )
     : -1;
@@ -56,7 +85,12 @@ export function DesktopLyrics() {
           {player?.title ?? "博音 BiuPlayer"}
           {player?.artist ? ` · ${player.artist}` : ""}
         </p>
-        <p className="desktop-lyrics-current">{active?.text || (lyrics ? "♪" : "等待歌词…")}</p>
+        <p
+          className="desktop-lyrics-current"
+          style={{ fontSize: `${fontSize}px`, color }}
+        >
+          {active?.text || (lyrics ? "♪" : "等待歌词…")}
+        </p>
         <p className="desktop-lyrics-next">{next?.text ?? ""}</p>
       </div>
     </main>

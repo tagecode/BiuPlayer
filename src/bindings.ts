@@ -184,6 +184,7 @@ export type LyricsDto_Deserialize = {
 	album?: string | null,
 	by?: string | null,
 	offsetMs: number | null,
+	source: string,
 	lines: LyricLineDto[],
 };
 
@@ -193,6 +194,7 @@ export type LyricsDto_Serialize = {
 	album: string | null,
 	by: string | null,
 	offsetMs: number | null,
+	source: string,
 	lines: LyricLineDto[],
 };
 
@@ -321,6 +323,9 @@ export type SettingsDto = {
 	resumeOnStart: boolean,
 	listDensity: string,
 	reduceMotion: boolean,
+	lyricsOffsetMs: number | null,
+	desktopLyricsFontSize: number | null,
+	desktopLyricsColor: string,
 };
 
 export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
@@ -335,6 +340,9 @@ export type SettingsPatch_Deserialize = {
 	resumeOnStart?: boolean | null,
 	listDensity?: string | null,
 	reduceMotion?: boolean | null,
+	lyricsOffsetMs?: number | null,
+	desktopLyricsFontSize?: number | null,
+	desktopLyricsColor?: string | null,
 };
 
 export type SettingsPatch_Serialize = {
@@ -347,6 +355,9 @@ export type SettingsPatch_Serialize = {
 	resumeOnStart: boolean | null,
 	listDensity: string | null,
 	reduceMotion: boolean | null,
+	lyricsOffsetMs: number | null,
+	desktopLyricsFontSize: number | null,
+	desktopLyricsColor: string | null,
 };
 
 export type TestTick = {

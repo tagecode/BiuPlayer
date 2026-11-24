@@ -39,6 +39,7 @@ export function NowPlaying() {
   const [message, setMessage] = useState("");
   const [lyrics, setLyrics] = useState<LyricsDto_Serialize | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsOffset, setLyricsOffset] = useState(0);
   const lyricsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +62,13 @@ export function NowPlaying() {
       disposed = true;
       unlisten?.();
     };
+  }, []);
+
+  useEffect(() => {
+    commands
+      .settingsGet()
+      .then((settings) => setLyricsOffset(settings.lyricsOffsetMs ?? 0))
+      .catch(() => setLyricsOffset(0));
   }, []);
 
   useEffect(() => {
@@ -194,7 +202,12 @@ export function NowPlaying() {
           <div className="card-head">
             <h3>歌词</h3>
             <span className="pill">
-              {lyrics ? `${lyrics.lines.length} 行` : lyricsLoading ? "加载中" : "无"}
+              {lyrics
+                ? `${lyrics.lines.length} 行 · ${lyrics.source === "embedded" ? "内嵌" : "LRC"}`
+                : lyricsLoading
+                  ? "加载中"
+                  : "无"}
+              {lyrics && lyricsOffset !== 0 ? ` · ${lyricsOffset > 0 ? "+" : ""}${lyricsOffset}ms` : ""}
             </span>
             <button className="ghost small" onClick={() => run(() => commands.desktopLyricsToggle())}>
               桌面歌词

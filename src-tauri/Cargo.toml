@@ -39,4 +39,5 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 base64 = "0.22"
 
 [dev-dependencies]
+lofty = "0.22"
 tauri = { version = "2", features = ["test"] }

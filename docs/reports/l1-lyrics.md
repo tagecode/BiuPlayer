@@ -64,3 +64,15 @@
 - 播放入口在正在播放页歌词卡片右上角“桌面歌词”。
 - 验证：`pnpm build` 通过（JS 375.14 kB/gzip 116.62 kB），Rust workspace 41 个测试通过，clippy/fmt 通过。
 - 已知限制：无点击穿透、无逐字高亮、无字体/颜色/位置持久化、无关闭按钮（需从主窗口再次点击隐藏）、多显示器位置未记忆。
+
+## 内嵌歌词回退、偏移与样式（补充）
+
+- `biu_lyrics::load_for_audio` 先找同名 `.lrc`，找不到再读标签 `ItemKey::Lyrics`；返回 `source = sidecar | embedded`，播放页头部显示来源。
+- 新增集成测试 `falls_back_to_embedded_lyrics`：往 MP3 写入 `ItemKey::Lyrics`，不写 `.lrc`，仍能加载并解析。
+- 设置新增：
+  - `lyrics.offset_ms`：全局偏移，范围 -10000～10000 ms；播放页当前行计算变为 `position + 80 + offset`。
+  - `lyrics.font_size`：桌面歌词字号，16～96。
+  - `lyrics.desktop_color`：桌面歌词颜色，`#RRGGBB`。
+- 设置页新增“歌词”卡片；修改后 `settings_update` 发 `settings:changed`，桌面歌词窗口实时刷新字号/颜色/偏移。
+- 验证：`pnpm build` 通过（JS 376.51 kB/gzip 117.02 kB），clippy/fmt 通过，歌词集成测试 3 个通过。
+- 限制：偏移是全局的，不按曲目记忆；内嵌歌词只取第一个歌词标签；不做双语/逐字。

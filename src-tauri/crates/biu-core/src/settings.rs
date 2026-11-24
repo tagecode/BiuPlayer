@@ -128,6 +128,7 @@ impl Default for DspSettings {
 pub struct LyricsSettings {
     pub desktop: bool,
     pub font_size: u32,
+    pub desktop_color: String,
     pub offset_ms: i32,
     pub source: String,
 }
@@ -137,6 +138,7 @@ impl Default for LyricsSettings {
         Self {
             desktop: false,
             font_size: 32,
+            desktop_color: "#f5f7fa".into(),
             offset_ms: 0,
             source: "local".into(),
         }
