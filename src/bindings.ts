@@ -40,6 +40,17 @@ export type AudioDevice = {
 	sample_formats: string[],
 };
 
+/**
+ *  Stable error envelope shared by every Tauri command.
+ * 
+ *  The frontend switches on `code`; `message` is for logs and toasts. New codes
+ *  are additive, existing codes must not change meaning.
+ */
+export type CommandError = {
+	code: string,
+	message: string,
+};
+
 export type PingReply = {
 	payload: string,
 	echo: string,

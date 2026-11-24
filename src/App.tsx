@@ -6,6 +6,15 @@ import "./App.css";
 
 const inTauri = "__TAURI_INTERNALS__" in window;
 
+function formatCommandError(err: unknown): string {
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object" && "code" in err && "message" in err) {
+    const { code, message } = err as { code: unknown; message: unknown };
+    return `${String(code)}: ${String(message)}`;
+  }
+  return JSON.stringify(err);
+}
+
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [infoError, setInfoError] = useState("");
@@ -31,11 +40,11 @@ function App() {
     commands
       .appInfo()
       .then(setInfo)
-      .catch((err) => setInfoError(String(err)));
+      .catch((err) => setInfoError(formatCommandError(err)));
     commands
       .appPaths()
       .then(setPaths)
-      .catch((err) => setInfoError(String(err)));
+      .catch((err) => setInfoError(formatCommandError(err)));
   }, []);
 
   useEffect(() => {
@@ -62,7 +71,7 @@ function App() {
     } catch (err) {
       setPingReply({
         payload: pingInput,
-        echo: `调用失败: ${String(err)}`,
+        echo: `调用失败: ${formatCommandError(err)}`,
         server_time_ms: null,
       });
     }
@@ -80,7 +89,7 @@ function App() {
       const sent = await commands.emitTestEvents(count);
       setEventStatus(`已发送 ${sent} 个事件，等待接收`);
     } catch (err) {
-      setEventStatus(`发送失败: ${String(err)}`);
+      setEventStatus(`发送失败: ${formatCommandError(err)}`);
     }
   }
 
@@ -89,7 +98,7 @@ function App() {
     try {
       setDiagPath(await commands.exportDiagnostics());
     } catch (err) {
-      setDiagError(String(err));
+      setDiagError(formatCommandError(err));
     }
   }
 
@@ -98,7 +107,7 @@ function App() {
     try {
       setDevices(await commands.audioDevices());
     } catch (err) {
-      setDeviceError(String(err));
+      setDeviceError(formatCommandError(err));
     }
   }
 

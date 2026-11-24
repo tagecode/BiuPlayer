@@ -49,3 +49,42 @@ pub mod error_codes {
     pub const E_AUDIO_DEVICE: &str = "E_AUDIO_DEVICE";
     pub const E_WINAMP: &str = "E_WINAMP";
 }
+
+/// Stable error envelope shared by every Tauri command.
+///
+/// The frontend switches on `code`; `message` is for logs and toasts. New codes
+/// are additive, existing codes must not change meaning.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CommandError {
+    pub code: String,
+    pub message: String,
+}
+
+impl CommandError {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(error_codes::E_INTERNAL, message)
+    }
+
+    pub fn invalid_argument(message: impl Into<String>) -> Self {
+        Self::new(error_codes::E_INVALID_ARGUMENT, message)
+    }
+
+    pub fn audio_device(message: impl Into<String>) -> Self {
+        Self::new(error_codes::E_AUDIO_DEVICE, message)
+    }
+}
+
+impl std::fmt::Display for CommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CommandError {}

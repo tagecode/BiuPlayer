@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick};
+use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, CommandError, PingReply, TestTick};
 use tauri::{AppHandle, Emitter, Runtime, State};
 
 use crate::AppPathsState;
@@ -35,12 +35,19 @@ pub fn app_ping(payload: String) -> PingReply {
 
 #[tauri::command]
 #[specta::specta]
-pub fn emit_test_events(app: AppHandle, count: u32) -> Result<u32, String> {
+pub fn emit_test_events(app: AppHandle, count: u32) -> Result<u32, CommandError> {
     emit_test_events_impl(&app, count)
 }
 
-pub fn emit_test_events_impl<R: Runtime>(app: &AppHandle<R>, count: u32) -> Result<u32, String> {
-    let count = count.min(10_000);
+pub fn emit_test_events_impl<R: Runtime>(
+    app: &AppHandle<R>,
+    count: u32,
+) -> Result<u32, CommandError> {
+    if count > 10_000 {
+        return Err(CommandError::invalid_argument(
+            "count must be between 0 and 10000",
+        ));
+    }
     for seq in 1..=count {
         app.emit(
             TEST_TICK,
@@ -49,7 +56,7 @@ pub fn emit_test_events_impl<R: Runtime>(app: &AppHandle<R>, count: u32) -> Resu
                 sent_at_ms: now_ms(),
             },
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| CommandError::internal(e.to_string()))?;
     }
     tracing::info!(count, "emitted test events");
     Ok(count)
@@ -57,7 +64,7 @@ pub fn emit_test_events_impl<R: Runtime>(app: &AppHandle<R>, count: u32) -> Resu
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_devices() -> Result<Vec<AudioDevice>, String> {
+pub fn audio_devices() -> Result<Vec<AudioDevice>, CommandError> {
     biu_audio::list_output_devices()
         .map(|devices| {
             devices
@@ -71,7 +78,7 @@ pub fn audio_devices() -> Result<Vec<AudioDevice>, String> {
                 })
                 .collect()
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| CommandError::audio_device(e.to_string()))
 }
 
 #[tauri::command]
@@ -89,9 +96,10 @@ pub fn app_paths(paths: State<'_, AppPathsState>) -> AppPathsInfo {
 
 #[tauri::command]
 #[specta::specta]
-pub fn export_diagnostics(paths: State<'_, AppPathsState>) -> Result<String, String> {
+pub fn export_diagnostics(paths: State<'_, AppPathsState>) -> Result<String, CommandError> {
     crate::diagnostics::export_diagnostics(&paths.0, env!("CARGO_PKG_VERSION"))
         .map(|path| path.display().to_string())
+        .map_err(|err| CommandError::internal(err.to_string()))
 }
 
 fn now_ms() -> f64 {

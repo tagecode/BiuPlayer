@@ -26,3 +26,18 @@ fn ping_echoes_payload() {
     let reply = biuplayer_lib::commands::system::app_ping("biu".into());
     assert_eq!(reply.echo, "pong:biu");
 }
+
+#[test]
+fn rejects_oversized_event_burst_with_stable_code() {
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+
+    let error = biuplayer_lib::commands::system::emit_test_events_impl(app.handle(), 10_001)
+        .expect_err("must reject");
+    assert_eq!(error.code, biu_ipc::error_codes::E_INVALID_ARGUMENT);
+
+    let json = serde_json::to_value(&error).unwrap();
+    assert_eq!(json["code"], "E_INVALID_ARGUMENT");
+    assert!(json["message"].as_str().unwrap().contains("10000"));
+}
