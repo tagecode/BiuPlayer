@@ -714,3 +714,18 @@ body {
 .track-row .row-actions {
   justify-content: flex-end;
 }
+
+.drop-overlay {
+  position: fixed;
+  inset: 16px;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  pointer-events: none;
+  z-index: 50;
+}

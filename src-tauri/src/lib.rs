@@ -15,7 +15,7 @@ use biu_ipc::{
 };
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
 
 #[cfg(debug_assertions)]
@@ -107,10 +107,14 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
+            }
+            let files: Vec<String> = args.into_iter().skip(1).collect();
+            if !files.is_empty() {
+                let _ = app.emit("single-instance:open", files);
             }
         }))
         .invoke_handler(builder.invoke_handler())

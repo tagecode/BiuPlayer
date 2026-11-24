@@ -53,6 +53,20 @@ function errorText(error: unknown): string {
   return String(error);
 }
 
+
+const AUDIO_EXTENSIONS = new Set([
+  "mp3", "flac", "wav", "m4a", "aac", "ogg", "oga", "aiff", "aif",
+]);
+
+function isAudioPath(path: string): boolean {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return AUDIO_EXTENSIONS.has(ext);
+}
+
+function nameFromPath(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
 export function Shell() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const { lang, setLang, t } = useI18n();
@@ -60,6 +74,7 @@ export function Shell() {
   const [queue, setQueue] = useState<QueueSnapshotDto_Serialize | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -132,6 +147,61 @@ export function Shell() {
   async function refreshQueue() {
     setQueue(await commands.playerQueue());
   }
+
+  useEffect(() => {
+    let disposed = false;
+    const unlisteners: Array<() => void> = [];
+
+    const acceptPaths = async (paths: string[]) => {
+      const audio = paths.filter(isAudioPath);
+      const folders = paths.filter((path) => !isAudioPath(path));
+      if (audio.length > 0) {
+        try {
+          await commands.playerPlayQueue(
+            audio.map((path) => ({
+              path,
+              title: nameFromPath(path),
+              artist: null,
+              album: null,
+              duration_ms: null,
+            })),
+            0,
+            "list_loop",
+          );
+          setNotice(`正在播放：${nameFromPath(audio[0])}`);
+        } catch (error) {
+          setNotice(errorText(error));
+        }
+      }
+      if (folders.length > 0) {
+        try {
+          await commands.libraryScanStart(folders[0]);
+          setNotice(`已开始扫描：${folders[0]}`);
+        } catch (error) {
+          setNotice(errorText(error));
+        }
+      }
+    };
+
+    listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
+      setDragging(false);
+      void acceptPaths(event.payload.paths ?? []);
+    }).then((stop) => (disposed ? stop() : unlisteners.push(stop)));
+    listen("tauri://drag-enter", () => setDragging(true)).then((stop) =>
+      disposed ? stop() : unlisteners.push(stop),
+    );
+    listen("tauri://drag-leave", () => setDragging(false)).then((stop) =>
+      disposed ? stop() : unlisteners.push(stop),
+    );
+    listen<string[]>("single-instance:open", (event) => {
+      void acceptPaths(event.payload ?? []);
+    }).then((stop) => (disposed ? stop() : unlisteners.push(stop)));
+
+    return () => {
+      disposed = true;
+      unlisteners.forEach((stop) => stop());
+    };
+  }, []);
 
   const mode = (modes.includes(player?.mode as PlayMode) ? player?.mode : "sequential") as PlayMode;
   const playing = player?.state === "playing";
@@ -352,6 +422,7 @@ export function Shell() {
         </footer>
         {notice && <p className="player-notice">{notice}</p>}
       </div>
+      {dragging && <div className="drop-overlay">释放以播放音频，或扫描目录</div>}
     </div>
   );
 }
