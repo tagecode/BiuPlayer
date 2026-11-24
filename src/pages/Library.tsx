@@ -23,6 +23,8 @@ function formatDuration(ms: number | null): string {
 export function Library() {
   const [folder, setFolder] = useState("");
   const [tracks, setTracks] = useState<LibraryTrackDto_Serialize[]>([]);
+  const [hits, setHits] = useState<LibraryTrackDto_Serialize[]>([]);
+  const [query, setQuery] = useState("");
   const [count, setCount] = useState(0);
   const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
@@ -40,6 +42,21 @@ export function Library() {
   useEffect(() => {
     refresh().catch((error) => setMessage(errorText(error)));
   }, [refresh]);
+
+  useEffect(() => {
+    const value = query.trim();
+    if (!value) {
+      setHits([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      commands
+        .librarySearch(value, 50)
+        .then(setHits)
+        .catch((error) => setMessage(errorText(error)));
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     if (scan?.state !== "scanning") return;
@@ -107,6 +124,8 @@ export function Library() {
     }
   }
 
+  const visible = query.trim() ? hits : tracks;
+
   return (
     <section className="page">
       <div className="page-head">
@@ -160,12 +179,24 @@ export function Library() {
       <div className="card">
         <div className="card-head">
           <h3>曲目</h3>
-          <button type="button" className="ghost" onClick={() => refresh()} disabled={busy}>
-            刷新
-          </button>
+          <div className="library-search">
+            <input
+              aria-label="搜索曲目"
+              placeholder="搜索标题、艺术家、专辑或拼音"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <button type="button" className="ghost" onClick={() => refresh()} disabled={busy}>
+              刷新
+            </button>
+          </div>
         </div>
-        {tracks.length === 0 ? (
-          <p className="muted">还没有曲目。添加一个包含音频文件的目录开始扫描。</p>
+        {visible.length === 0 ? (
+          <p className="muted">
+            {query.trim()
+              ? "没有匹配的曲目，试试标题、艺术家、专辑或拼音首字母。"
+              : "还没有曲目。添加一个包含音频文件的目录开始扫描。"}
+          </p>
         ) : (
           <table className="track-table">
             <thead>
@@ -179,7 +210,7 @@ export function Library() {
               </tr>
             </thead>
             <tbody>
-              {tracks.map((track) => (
+              {visible.map((track) => (
                 <tr key={track.path}>
                   <td title={track.path}>{track.title}</td>
                   <td>{track.artist ?? "未知艺术家"}</td>

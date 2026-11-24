@@ -5,11 +5,12 @@ use std::collections::HashMap;
 
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::tag::Accessor;
+use pinyin::ToPinyin;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -133,6 +134,63 @@ struct TrackTags {
     sample_rate: Option<u32>,
     channels: Option<u16>,
     bitrate: Option<u32>,
+}
+
+fn pinyin_parts(input: &str) -> (String, String, String) {
+    let mut syllables: Vec<String> = Vec::new();
+    let mut initials = String::new();
+    let mut compact = String::new();
+    for ch in input.chars() {
+        if let Some(pinyin) = ch.to_pinyin() {
+            let plain = pinyin.plain();
+            syllables.push(plain.to_string());
+            initials.push_str(&plain[..1]);
+            compact.push_str(plain);
+        } else if ch.is_ascii_alphanumeric() {
+            syllables.push(ch.to_string());
+            compact.push(ch);
+        }
+    }
+    let initials_spaced = initials
+        .chars()
+        .map(|ch| ch.to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    (syllables.join(" "), initials_spaced, compact)
+}
+
+fn build_search_text(title: &str, artist: Option<&str>, album: Option<&str>) -> String {
+    let mut text = String::new();
+    for part in [Some(title), artist, album].into_iter().flatten() {
+        if part.trim().is_empty() {
+            continue;
+        }
+        text.push_str(part);
+        text.push(' ');
+        let (syllables, initials, compact) = pinyin_parts(part);
+        let initials_compact = initials.replace(' ', "");
+        for token in [syllables, initials, initials_compact, compact] {
+            if !token.is_empty() {
+                text.push_str(&token);
+                text.push(' ');
+            }
+        }
+    }
+    text.trim_end().to_string()
+}
+
+fn fts_query(input: &str) -> String {
+    let terms: Vec<String> = input
+        .split_whitespace()
+        .filter_map(|term| {
+            let cleaned: String = term
+                .chars()
+                .filter(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '-')
+                .collect();
+            (!cleaned.is_empty()).then(|| format!("{cleaned}*"))
+        })
+        .collect();
+    terms.join(" AND ")
 }
 
 fn read_tags(path: &Path) -> Option<TrackTags> {
@@ -331,18 +389,21 @@ impl Database {
                 applied_at TEXT NOT NULL
             );",
         )?;
-        let applied: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT version FROM schema_migrations WHERE version = ?1",
-                [SCHEMA_VERSION],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if applied.is_some() {
-            return Ok(());
+        let current: i64 = self.conn.query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |row| row.get(0),
+        )?;
+        if current < 1 {
+            self.apply_v1()?;
         }
+        if current < 2 {
+            self.apply_v2()?;
+        }
+        Ok(())
+    }
 
+    fn apply_v1(&mut self) -> Result<(), LibraryError> {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
             "CREATE TABLE folders (
@@ -434,8 +495,45 @@ impl Database {
             END;",
         )?;
         tx.execute(
-            "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, datetime('now'))",
-            [SCHEMA_VERSION],
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'))",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn apply_v2(&mut self) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "ALTER TABLE tracks ADD COLUMN search_text TEXT NOT NULL DEFAULT '';
+            DROP TRIGGER tracks_ai;
+            DROP TRIGGER tracks_ad;
+            DROP TRIGGER tracks_au;
+            DROP TABLE tracks_fts;
+            CREATE VIRTUAL TABLE tracks_fts USING fts5(
+                title, search_text, path,
+                content='tracks', content_rowid='id',
+                tokenize='unicode61'
+            );
+            INSERT INTO tracks_fts(tracks_fts) VALUES('rebuild');
+            CREATE TRIGGER tracks_ai AFTER INSERT ON tracks BEGIN
+                INSERT INTO tracks_fts(rowid, title, search_text, path)
+                VALUES (new.id, new.title, new.search_text, new.path);
+            END;
+            CREATE TRIGGER tracks_ad AFTER DELETE ON tracks BEGIN
+                INSERT INTO tracks_fts(tracks_fts, rowid, title, search_text, path)
+                VALUES ('delete', old.id, old.title, old.search_text, old.path);
+            END;
+            CREATE TRIGGER tracks_au AFTER UPDATE ON tracks BEGIN
+                INSERT INTO tracks_fts(tracks_fts, rowid, title, search_text, path)
+                VALUES ('delete', old.id, old.title, old.search_text, old.path);
+                INSERT INTO tracks_fts(rowid, title, search_text, path)
+                VALUES (new.id, new.title, new.search_text, new.path);
+            END;",
+        )?;
+        tx.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'))",
+            [],
         )?;
         tx.commit()?;
         Ok(())
@@ -617,14 +715,19 @@ impl Database {
             let size = metadata.len() as i64;
 
             let tx = self.conn.transaction()?;
-            let existing: Option<(i64, i64)> = tx
+            let existing: Option<(i64, i64, String)> = tx
                 .query_row(
-                    "SELECT size_bytes, mtime FROM tracks WHERE path = ?1",
+                    "SELECT size_bytes, mtime, search_text FROM tracks WHERE path = ?1",
                     params![path_string],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
                 .optional()?;
-            if existing == Some((size, mtime)) {
+            let unchanged = existing
+                .as_ref()
+                .is_some_and(|(stored_size, stored_mtime, text)| {
+                    *stored_size == size && *stored_mtime == mtime && !text.is_empty()
+                });
+            if unchanged {
                 tx.commit()?;
                 report.skipped += 1;
                 progress
@@ -651,30 +754,36 @@ impl Database {
                         .map(ToString::to_string)
                 })
                 .unwrap_or_default();
+            let artist_name = tags
+                .as_ref()
+                .and_then(|tags| tags.artist.as_deref())
+                .filter(|name| !name.trim().is_empty());
+            let album_name = tags
+                .as_ref()
+                .and_then(|tags| tags.album.as_deref())
+                .filter(|name| !name.trim().is_empty());
+            let search_text = build_search_text(&title, artist_name, album_name);
 
-            let artist_id = match tags.as_ref().and_then(|tags| tags.artist.as_deref()) {
-                Some(name) if !name.trim().is_empty() => {
-                    Some(artist_id(&tx, &mut artist_cache, name)?)
-                }
-                _ => None,
+            let artist_id = match artist_name {
+                Some(name) => Some(artist_id(&tx, &mut artist_cache, name)?),
+                None => None,
             };
-            let album_id = match tags.as_ref().and_then(|tags| tags.album.as_deref()) {
-                Some(title) if !title.trim().is_empty() => {
-                    Some(album_id(&tx, &mut album_cache, title, artist_id)?)
-                }
-                _ => None,
+            let album_id = match album_name {
+                Some(title) => Some(album_id(&tx, &mut album_cache, title, artist_id)?),
+                None => None,
             };
 
             tx.execute(
                 "INSERT INTO tracks(
-                    folder_id, path, title, artist_id, album_id, track_no, disc_no,
+                    folder_id, path, title, search_text, artist_id, album_id, track_no, disc_no,
                     genre, year, duration_ms, sample_rate, channels, bitrate,
                     format, size_bytes, mtime, added_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
                     datetime('now'), datetime('now'))
                  ON CONFLICT(path) DO UPDATE SET
                     folder_id = excluded.folder_id,
                     title = excluded.title,
+                    search_text = excluded.search_text,
                     artist_id = excluded.artist_id,
                     album_id = excluded.album_id,
                     track_no = excluded.track_no,
@@ -693,6 +802,7 @@ impl Database {
                     folder_id,
                     path_string,
                     title,
+                    search_text,
                     artist_id,
                     album_id,
                     tags.as_ref().and_then(|tags| tags.track_no),
@@ -739,13 +849,17 @@ impl Database {
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<TrackRow>, LibraryError> {
+        let match_query = fts_query(query);
+        if match_query.is_empty() {
+            return Ok(Vec::new());
+        }
         let mut stmt = self.conn.prepare(
             "SELECT t.id, t.title, t.path, COALESCE(t.format, '')
              FROM tracks_fts f JOIN tracks t ON t.id = f.rowid
              WHERE tracks_fts MATCH ?1
              ORDER BY bm25(tracks_fts) LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![query, limit as i64], |row| {
+        let rows = stmt.query_map(params![match_query, limit as i64], |row| {
             Ok(TrackRow {
                 id: row.get(0)?,
                 title: row.get(1)?,

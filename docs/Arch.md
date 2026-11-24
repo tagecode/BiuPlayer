@@ -702,10 +702,10 @@ Cargo features 需显式开启：`mp3,aac,alac,aiff,isomp4,ogg,vorbis,flac,wav,p
 
 ### 7.4 搜索
 
-- 写入时对 `title/artist/album/genre` 做 jieba 分词，空格连接存入 `search_text`；同时生成拼音首字母列 `initials`。
-- FTS5 外部内容表 `tracks_fts(search_text, content='tracks', content_rowid='id')`，触发器同步。
-- 查询：对输入分词后用 `MATCH`（前缀 `*`），按 `bm25()` 排序；无结果回退 `LIKE '%q%'`（限 200 条）。
-- 支持字段前缀：`artist:周杰伦`、`album:叶惠美`、`is:lossless`（解析为结构化条件，不直接拼 SQL）。
+- 写入时由 Rust 生成 `search_text`：`title`、`artist`、`album` 原文，加上每段的全拼、空格分隔音节与首字母连写（如“晴天”生成 `qing tian`、`q t`、`qt`、`qingtian`）。
+- FTS5 外部内容表 `tracks_fts(title, search_text, path, content='tracks', content_rowid='id')`，触发器同步。
+- 查询：按空白拆词，每个词加 `*` 前缀，用 `AND` 连接后 `MATCH`，按 `bm25()` 排序；MVP 不做字段前缀与 `LIKE` 回退（P1）。
+- 拼音基于 `pinyin` crate 的 `ToPinyin`，不引 jieba；中文多音字按词典默认读音。
 - 目标：10 万曲目 ≤ 100ms；输入 150ms 防抖。
 
 ### 7.5 封面缓存
@@ -1402,34 +1402,39 @@ CREATE INDEX idx_winamp_order       ON winamp_dsp(sort_order, id);
 
 ```sql
 CREATE VIRTUAL TABLE tracks_fts USING fts5(
-  search_text,
+  title, search_text, path,
   content = 'tracks',
   content_rowid = 'id',
   tokenize = 'unicode61'
 );
 
 CREATE TRIGGER tracks_ai AFTER INSERT ON tracks BEGIN
-  INSERT INTO tracks_fts(rowid, search_text) VALUES (new.id, new.search_text);
+  INSERT INTO tracks_fts(rowid, title, search_text, path)
+  VALUES (new.id, new.title, new.search_text, new.path);
 END;
 
 CREATE TRIGGER tracks_ad AFTER DELETE ON tracks BEGIN
-  INSERT INTO tracks_fts(tracks_fts, rowid, search_text) VALUES ('delete', old.id, old.search_text);
+  INSERT INTO tracks_fts(tracks_fts, rowid, title, search_text, path)
+  VALUES ('delete', old.id, old.title, old.search_text, old.path);
 END;
 
-CREATE TRIGGER tracks_au AFTER UPDATE OF search_text ON tracks BEGIN
-  INSERT INTO tracks_fts(tracks_fts, rowid, search_text) VALUES ('delete', old.id, old.search_text);
-  INSERT INTO tracks_fts(rowid, search_text) VALUES (new.id, new.search_text);
+CREATE TRIGGER tracks_au AFTER UPDATE ON tracks BEGIN
+  INSERT INTO tracks_fts(tracks_fts, rowid, title, search_text, path)
+  VALUES ('delete', old.id, old.title, old.search_text, old.path);
+  INSERT INTO tracks_fts(rowid, title, search_text, path)
+  VALUES (new.id, new.title, new.search_text, new.path);
 END;
 ```
 
-`search_text` 由 Rust 侧生成：`title + artist_display + album_display + genre`，中文经 jieba 分词后空格连接；`initials` 存拼音首字母（如 `yhm`），用于快速跳转。
+`search_text` 由 Rust 侧生成：`title`、`artist`、`album` 原文 + 全拼 `qing tian` + 首字母 `q t` / `qt` + 连写 `qingtian`；避免在查询时做中文分词。
 
 ### 12.7 迁移与备份
 
-- 迁移脚本编译进二进制（`rusqlite_migration`），版本单调递增，每个版本一个事务。
-- 启动时：`schemaVersion < 最新` → `VACUUM INTO backups/pre-migrate-<v>-<ts>.db` → 执行迁移 → 校验 `integrity_check`。
+- 迁移脚本编译进二进制，版本单调递增，每个版本一个事务；`schema_migrations(version, applied_at)` 记录已应用版本。
+- 启动时：`PRAGMA integrity_check` → 若 `schemaVersion < 最新` 先复制为 `library.db.bak` → 逐版本迁移 → 提交。
 - 失败：关闭连接 → 用备份替换 → 记录日志 → 提示用户（保留备份文件）。
-- 用户备份：`VACUUM INTO` + 复制设置/皮肤/插件清单；恢复需重启应用。
+- 当前版本 2：v1 建 9 表与 FTS5，v2 增加 `tracks.search_text` 并重建 `tracks_fts`；旧库升级前自动备份。
+- 用户备份：整库复制 + 设置/皮肤/插件清单；恢复需重启应用。
 
 ### 12.8 容量估算
 

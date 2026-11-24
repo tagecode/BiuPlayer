@@ -15,7 +15,7 @@ fn temp_db(name: &str) -> PathBuf {
 }
 
 #[test]
-fn fresh_database_is_version_one_and_idempotent() {
+fn fresh_database_is_versioned_and_idempotent() {
     let path = temp_db("fresh");
     {
         let db = Database::open(&path).unwrap();
@@ -45,7 +45,7 @@ fn fresh_database_is_version_one_and_idempotent() {
             row.get(0)
         })
         .unwrap();
-    assert_eq!(migrations, 1);
+    assert_eq!(migrations, SCHEMA_VERSION);
     drop(db);
     assert!(!backup_path(&path).exists());
     let _ = fs::remove_dir_all(path.parent().unwrap());

@@ -417,3 +417,12 @@ body {
 .library-add {
   flex-wrap: wrap;
 }
+
+.library-search {
+  display: flex;
+  gap: 8px;
+}
+
+.library-search input {
+  min-width: 240px;
+}

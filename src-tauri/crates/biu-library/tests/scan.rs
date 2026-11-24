@@ -117,3 +117,47 @@ fn scan_pauses_and_resumes_without_duplicates() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn searches_by_pinyin_and_artist_album() {
+    use lofty::config::WriteOptions;
+    use lofty::file::{AudioFile, TaggedFileExt};
+    use lofty::tag::{Accessor, Tag, TagType};
+
+    let root = temp_root();
+    let source =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/audio/m0/tone.mp3");
+    let target = root.join("sunny.mp3");
+    std::fs::copy(source, &target).unwrap();
+
+    let mut tagged = lofty::read_from_path(&target).unwrap();
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.set_title("晴天".to_string());
+    tag.set_artist("周杰伦".to_string());
+    tag.set_album("叶惠美".to_string());
+    tagged.insert_tag(tag);
+    tagged
+        .save_to_path(&target, WriteOptions::default())
+        .unwrap();
+
+    let mut db = Database::open(root.join("test.db")).unwrap();
+    let folder_id = db.add_folder(&root).unwrap();
+    db.scan_folder(folder_id, &root).unwrap();
+
+    for query in [
+        "qingtian",
+        "qt",
+        "zhoujielun",
+        "zjl",
+        "yehuimei",
+        "yhm",
+        "周杰伦",
+        "晴天",
+    ] {
+        let hits = db.search(query, 10).unwrap();
+        assert!(!hits.is_empty(), "query {query} should hit");
+    }
+
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}
