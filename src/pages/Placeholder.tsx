@@ -1,26 +1,30 @@
+import { useI18n, type MessageKey } from "../i18n";
+
 type PlaceholderProps = {
   page: string;
-  title: string;
-  description: string;
-  next: string[];
+  titleKey: MessageKey;
+  descKey: MessageKey;
 };
 
-export function Placeholder({ page, title, description, next }: PlaceholderProps) {
+export function Placeholder({ page, titleKey, descKey }: PlaceholderProps) {
+  const { t } = useI18n();
+  const todo = ["page.todo.0", "page.todo.1", "page.todo.2"] as const;
+
   return (
     <section className="page">
       <div className="page-head">
         <span className="page-kicker">{page}</span>
-        <h2>{title}</h2>
-        <p>{description}</p>
+        <h2>{t(titleKey)}</h2>
+        <p>{t(descKey)}</p>
       </div>
       <div className="card">
         <div className="card-head">
-          <h3>本页待实现</h3>
-          <span className="muted">E1-05 占位 · 后续任务填充</span>
+          <h3>{t("page.todoTitle")}</h3>
+          <span className="muted">{t("page.todoHint")}</span>
         </div>
         <ul className="todo-list">
-          {next.map((item) => (
-            <li key={item}>{item}</li>
+          {todo.map((key) => (
+            <li key={key}>{t(key)}</li>
           ))}
         </ul>
       </div>

@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useI18n, type Lang, type MessageKey } from "./i18n";
 
-const nav = [
-  { to: "/", label: "正在播放", end: true },
-  { to: "/library", label: "媒体库" },
-  { to: "/playlists", label: "播放列表" },
-  { to: "/search", label: "搜索" },
-  { to: "/equalizer", label: "均衡器" },
-  { to: "/skins", label: "皮肤" },
-  { to: "/plugins", label: "插件" },
-  { to: "/tools", label: "音频工具" },
-  { to: "/settings/general", label: "设置" },
-  { to: "/m0", label: "M0 验证台" },
+const nav: { to: string; labelKey: MessageKey; end?: boolean }[] = [
+  { to: "/", labelKey: "nav.nowPlaying", end: true },
+  { to: "/library", labelKey: "nav.library" },
+  { to: "/playlists", labelKey: "nav.playlists" },
+  { to: "/search", labelKey: "nav.search" },
+  { to: "/equalizer", labelKey: "nav.equalizer" },
+  { to: "/skins", labelKey: "nav.skins" },
+  { to: "/plugins", labelKey: "nav.plugins" },
+  { to: "/tools", labelKey: "nav.tools" },
+  { to: "/settings/general", labelKey: "nav.settings" },
+  { to: "/m0", labelKey: "nav.m0" },
 ];
 
 type Theme = "dark" | "light";
@@ -23,6 +24,7 @@ function initialTheme(): Theme {
 
 export function Shell() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const { lang, setLang, t } = useI18n();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -35,8 +37,8 @@ export function Shell() {
         <div className="brand">
           <span className="brand-mark">Biu</span>
           <div>
-            <strong>博音</strong>
-            <p>BiuPlayer</p>
+            <strong>{t("app.name")}</strong>
+            <p>{t("app.tagline")}</p>
           </div>
         </div>
         <nav className="nav">
@@ -47,25 +49,35 @@ export function Shell() {
               end={item.end}
               className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
             >
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
         <div className="sidebar-foot">
+          <select
+            className="lang-select"
+            aria-label={t("lang.label")}
+            value={lang}
+            onChange={(event) => setLang(event.target.value as Lang)}
+          >
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+            <option value="en">English</option>
+          </select>
           <button className="ghost" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? "浅色主题" : "深色主题"}
+            {theme === "dark" ? t("theme.toLight") : t("theme.toDark")}
           </button>
-          <span className="muted">v0.1.0 · M0</span>
+          <span className="muted">{t("app.version")}</span>
         </div>
       </aside>
 
       <div className="main">
         <header className="titlebar">
           <div>
-            <span className="muted">本地优先 · 离线可用</span>
+            <span className="muted">{t("shell.offline")}</span>
           </div>
           <div className="titlebar-actions">
-            <input className="search" placeholder="搜索曲目、专辑、艺术家（⌘K）" disabled />
+            <input className="search" placeholder={t("shell.search")} disabled />
           </div>
         </header>
         <main className="content">
@@ -75,14 +87,14 @@ export function Shell() {
           <div className="player-meta">
             <div className="cover-placeholder">♪</div>
             <div>
-              <strong>未在播放</strong>
-              <p className="muted">选择一个文件夹开始</p>
+              <strong>{t("player.none")}</strong>
+              <p className="muted">{t("player.hint")}</p>
             </div>
           </div>
           <div className="player-controls">
-            <button className="ghost" disabled>⏮</button>
-            <button className="play" disabled>▶</button>
-            <button className="ghost" disabled>⏭</button>
+            <button className="ghost" aria-label={t("player.prev")} disabled>⏮</button>
+            <button className="play" aria-label={t("player.play")} disabled>▶</button>
+            <button className="ghost" aria-label={t("player.next")} disabled>⏭</button>
           </div>
           <div className="player-progress">
             <span className="mono">0:00</span>
