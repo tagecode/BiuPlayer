@@ -62,6 +62,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_artists,
             commands::library::library_artist_tracks,
             commands::library::library_album_cover,
+            commands::settings::settings_get,
+            commands::settings::settings_update,
             commands::library::playlist_list,
             commands::library::playlist_create,
             commands::library::playlist_rename,
@@ -135,6 +137,7 @@ pub fn run() {
             app.manage(guard);
             let database_file = paths.database_file.clone();
             let session_file = paths.data_dir.join("player-session.json");
+            let settings_file = paths.settings_file.clone();
             let covers_dir = paths.data_dir.join("covers");
             app.manage(AppPathsState(paths));
             app.manage(commands::player::AudioPlayerState::default());
@@ -151,6 +154,10 @@ pub fn run() {
                     None
                 }
             };
+            app.manage(commands::settings::SettingsState::new(
+                settings_file,
+                loaded.settings.clone(),
+            ));
             app.manage(commands::library::LibraryState::new(
                 library,
                 database_file.clone(),

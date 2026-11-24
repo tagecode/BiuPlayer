@@ -42,6 +42,8 @@ export const commands = {
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
+	settingsGet: (options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_get", undefined, options),
+	settingsUpdate: (patch: SettingsPatch_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_update", { patch }, options),
 	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),
 	playlistCreate: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_create", { name }, options),
 	playlistRename: (id: number | null, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_rename", { id, name }, options),
@@ -279,6 +281,45 @@ export type QueueSnapshotDto_Serialize = {
 	index: number | null,
 	mode: string,
 	muted: boolean,
+};
+
+export type SettingsDto = {
+	schemaVersion: number | null,
+	language: string,
+	theme: string,
+	startMinimized: boolean,
+	mode: string,
+	crossfadeMs: number | null,
+	gapless: boolean,
+	resumeOnStart: boolean,
+	listDensity: string,
+	reduceMotion: boolean,
+};
+
+export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
+
+export type SettingsPatch_Deserialize = {
+	language?: string | null,
+	theme?: string | null,
+	startMinimized?: boolean | null,
+	mode?: string | null,
+	crossfadeMs?: number | null,
+	gapless?: boolean | null,
+	resumeOnStart?: boolean | null,
+	listDensity?: string | null,
+	reduceMotion?: boolean | null,
+};
+
+export type SettingsPatch_Serialize = {
+	language: string | null,
+	theme: string | null,
+	startMinimized: boolean | null,
+	mode: string | null,
+	crossfadeMs: number | null,
+	gapless: boolean | null,
+	resumeOnStart: boolean | null,
+	listDensity: string | null,
+	reduceMotion: boolean | null,
 };
 
 export type TestTick = {

@@ -1,0 +1,133 @@
+use std::sync::Mutex;
+
+use biu_core::Settings;
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use biu_ipc::CommandError;
+
+pub struct SettingsState {
+    pub path: std::path::PathBuf,
+    pub settings: Mutex<Settings>,
+}
+
+impl SettingsState {
+    pub fn new(path: std::path::PathBuf, settings: Settings) -> Self {
+        Self {
+            path,
+            settings: Mutex::new(settings),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsDto {
+    pub schema_version: f64,
+    pub language: String,
+    pub theme: String,
+    pub start_minimized: bool,
+    pub mode: String,
+    pub crossfade_ms: f64,
+    pub gapless: bool,
+    pub resume_on_start: bool,
+    pub list_density: String,
+    pub reduce_motion: bool,
+}
+
+impl From<&Settings> for SettingsDto {
+    fn from(settings: &Settings) -> Self {
+        Self {
+            schema_version: settings.schema_version as f64,
+            language: settings.general.language.clone(),
+            theme: settings.general.theme.clone(),
+            start_minimized: settings.general.start_minimized,
+            mode: settings.playback.mode.clone(),
+            crossfade_ms: settings.playback.crossfade_ms as f64,
+            gapless: settings.playback.gapless,
+            resume_on_start: settings.playback.resume_on_start,
+            list_density: settings.ui.list_density.clone(),
+            reduce_motion: settings.ui.reduce_motion,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SettingsPatch {
+    pub language: Option<String>,
+    pub theme: Option<String>,
+    pub start_minimized: Option<bool>,
+    pub mode: Option<String>,
+    pub crossfade_ms: Option<f64>,
+    pub gapless: Option<bool>,
+    pub resume_on_start: Option<bool>,
+    pub list_density: Option<String>,
+    pub reduce_motion: Option<bool>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn settings_get(state: State<'_, SettingsState>) -> SettingsDto {
+    SettingsDto::from(&*state.settings.lock().unwrap())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn settings_update(
+    patch: SettingsPatch,
+    state: State<'_, SettingsState>,
+) -> Result<SettingsDto, CommandError> {
+    let mut guard = state.settings.lock().unwrap();
+    let settings = &mut *guard;
+
+    if let Some(language) = patch.language {
+        if !matches!(language.as_str(), "zh-CN" | "zh-TW" | "en") {
+            return Err(CommandError::invalid_argument("unsupported language"));
+        }
+        settings.general.language = language;
+    }
+    if let Some(theme) = patch.theme {
+        if !matches!(theme.as_str(), "system" | "light" | "dark") {
+            return Err(CommandError::invalid_argument("unsupported theme"));
+        }
+        settings.general.theme = theme;
+    }
+    if let Some(value) = patch.start_minimized {
+        settings.general.start_minimized = value;
+    }
+    if let Some(mode) = patch.mode {
+        if !matches!(
+            mode.as_str(),
+            "sequential" | "list_loop" | "single_loop" | "shuffle"
+        ) {
+            return Err(CommandError::invalid_argument("unsupported play mode"));
+        }
+        settings.playback.mode = mode;
+    }
+    if let Some(value) = patch.crossfade_ms {
+        if !(0.0..=10_000.0).contains(&value) {
+            return Err(CommandError::invalid_argument("crossfade out of range"));
+        }
+        settings.playback.crossfade_ms = value.round() as u32;
+    }
+    if let Some(value) = patch.gapless {
+        settings.playback.gapless = value;
+    }
+    if let Some(value) = patch.resume_on_start {
+        settings.playback.resume_on_start = value;
+    }
+    if let Some(value) = patch.list_density {
+        if !matches!(value.as_str(), "comfortable" | "compact") {
+            return Err(CommandError::invalid_argument("unsupported density"));
+        }
+        settings.ui.list_density = value;
+    }
+    if let Some(value) = patch.reduce_motion {
+        settings.ui.reduce_motion = value;
+    }
+
+    biu_core::save_settings(&state.path, settings)
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(SettingsDto::from(&*settings))
+}

@@ -7,6 +7,7 @@ import { Albums } from "./pages/Albums";
 import { ArtistDetail } from "./pages/ArtistDetail";
 import { Artists } from "./pages/Artists";
 import { NowPlaying } from "./pages/NowPlaying";
+import { Settings } from "./pages/Settings";
 import { PlaylistDetail } from "./pages/PlaylistDetail";
 import { Playlists } from "./pages/Playlists";
 import { Placeholder } from "./pages/Placeholder";
@@ -35,7 +36,7 @@ export const router = createHashRouter([
       { path: "/equalizer", element: page("P-10", "pages.equalizer.title", "pages.equalizer.desc") },
       { path: "/skins", element: page("P-11", "pages.skins.title", "pages.skins.desc") },
       { path: "/plugins", element: page("P-12", "pages.plugins.title", "pages.plugins.desc") },
-      { path: "/settings/:section", element: page("P-13", "pages.settings.title", "pages.settings.desc") },
+      { path: "/settings/:section", element: <Settings /> },
       { path: "/settings", element: <Navigate to="/settings/general" replace /> },
       { path: "/tools", element: page("P-14", "pages.tools.title", "pages.tools.desc") },
       { path: "/dev/states", element: <States /> },
