@@ -200,3 +200,16 @@ pub struct LibraryTrackDto {
     pub format: Option<String>,
     pub path: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlaylistDto {
+    pub id: f64,
+    pub name: String,
+    pub track_count: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PlaylistItemDto {
+    pub position: f64,
+    pub track: LibraryTrackDto,
+}

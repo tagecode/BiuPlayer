@@ -22,6 +22,8 @@ pub enum LibraryError {
     SchemaTooNew { found: i64, supported: i64 },
     #[error("database is corrupt: {0}")]
     Corrupt(String),
+    #[error("invalid argument: {0}")]
+    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,6 +291,19 @@ pub struct TrackListItem {
     pub duration_ms: Option<i64>,
     pub format: Option<String>,
     pub path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PlaylistSummary {
+    pub id: i64,
+    pub name: String,
+    pub track_count: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PlaylistItem {
+    pub position: i64,
+    pub track: TrackListItem,
 }
 
 pub struct Database {
@@ -910,6 +925,202 @@ impl Database {
         Ok(self
             .conn
             .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))?)
+    }
+    pub fn list_playlists(&self) -> Result<Vec<PlaylistSummary>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT p.id, p.name, COUNT(pi.track_id)
+             FROM playlists p
+             LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
+             GROUP BY p.id
+             ORDER BY p.name COLLATE NOCASE, p.id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(PlaylistSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                track_count: row.get(2)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(LibraryError::InvalidArgument(
+                "playlist name is empty".into(),
+            ));
+        }
+        self.conn.execute(
+            "INSERT INTO playlists (name, created_at, updated_at)
+             VALUES (?1, datetime('now'), datetime('now'))",
+            params![name],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(LibraryError::InvalidArgument(
+                "playlist name is empty".into(),
+            ));
+        }
+        let changed = self.conn.execute(
+            "UPDATE playlists SET name = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![name, id],
+        )?;
+        if changed == 0 {
+            return Err(LibraryError::InvalidArgument("playlist not found".into()));
+        }
+        Ok(())
+    }
+
+    pub fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
+        self.conn
+            .execute("DELETE FROM playlists WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn playlist_items(&self, id: i64) -> Result<Vec<PlaylistItem>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT pi.position, t.id, t.title, ar.name, al.title,
+                    t.duration_ms, t.format, t.path
+             FROM playlist_items pi
+             JOIN tracks t ON t.id = pi.track_id
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE pi.playlist_id = ?1
+             ORDER BY pi.position",
+        )?;
+        let rows = stmt.query_map(params![id], |row| {
+            Ok(PlaylistItem {
+                position: row.get(0)?,
+                track: TrackListItem {
+                    id: row.get(1)?,
+                    title: row.get(2)?,
+                    artist: row.get(3)?,
+                    album: row.get(4)?,
+                    duration_ms: row.get(5)?,
+                    format: row.get(6)?,
+                    path: row.get(7)?,
+                },
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn add_tracks_to_playlist(
+        &self,
+        id: i64,
+        track_ids: &[i64],
+    ) -> Result<usize, LibraryError> {
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM playlists WHERE id = ?1)",
+            params![id],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Err(LibraryError::InvalidArgument("playlist not found".into()));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        let mut inserted = 0usize;
+        for track_id in track_ids {
+            let changed = tx.execute(
+                "INSERT INTO playlist_items (playlist_id, track_id, position)
+                 SELECT ?1, ?2, COALESCE((SELECT MAX(position) + 1
+                                          FROM playlist_items WHERE playlist_id = ?1), 0)
+                 WHERE EXISTS(SELECT 1 FROM tracks WHERE id = ?2)
+                   AND NOT EXISTS(SELECT 1 FROM playlist_items
+                                  WHERE playlist_id = ?1 AND track_id = ?2)",
+                params![id, track_id],
+            )?;
+            inserted += changed;
+        }
+        tx.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        tx.commit()?;
+        Ok(inserted)
+    }
+
+    pub fn remove_playlist_item(&self, id: i64, position: i64) -> Result<(), LibraryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT track_id FROM playlist_items WHERE playlist_id = ?1 ORDER BY position",
+        )?;
+        let mut ids: Vec<i64> = stmt
+            .query_map(params![id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        drop(stmt);
+        if position < 0 || position >= ids.len() as i64 {
+            return Err(LibraryError::InvalidArgument(
+                "position out of range".into(),
+            ));
+        }
+        ids.remove(position as usize);
+        tx.execute(
+            "DELETE FROM playlist_items WHERE playlist_id = ?1",
+            params![id],
+        )?;
+        for (index, track_id) in ids.iter().enumerate() {
+            tx.execute(
+                "INSERT INTO playlist_items (playlist_id, track_id, position)
+                 VALUES (?1, ?2, ?3)",
+                params![id, track_id, index as i64],
+            )?;
+        }
+        tx.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn move_playlist_item(&self, id: i64, from: i64, to: i64) -> Result<(), LibraryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT track_id FROM playlist_items WHERE playlist_id = ?1 ORDER BY position",
+        )?;
+        let ids: Vec<i64> = stmt
+            .query_map(params![id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        drop(stmt);
+        if from < 0 || from >= ids.len() as i64 || to < 0 || to >= ids.len() as i64 {
+            return Err(LibraryError::InvalidArgument(
+                "position out of range".into(),
+            ));
+        }
+        let mut ids = ids;
+        let value = ids.remove(from as usize);
+        ids.insert(to as usize, value);
+        tx.execute(
+            "DELETE FROM playlist_items WHERE playlist_id = ?1",
+            params![id],
+        )?;
+        for (position, track_id) in ids.iter().enumerate() {
+            tx.execute(
+                "INSERT INTO playlist_items (playlist_id, track_id, position)
+                 VALUES (?1, ?2, ?3)",
+                params![id, track_id, position as i64],
+            )?;
+        }
+        tx.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?1",
+            params![id],
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 }
 

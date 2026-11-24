@@ -2,6 +2,8 @@ import { createHashRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import { Shell } from "./Shell";
 import { Library } from "./pages/Library";
+import { PlaylistDetail } from "./pages/PlaylistDetail";
+import { Playlists } from "./pages/Playlists";
 import { Placeholder } from "./pages/Placeholder";
 import { States } from "./pages/States";
 import type { MessageKey } from "./i18n";
@@ -21,8 +23,8 @@ export const router = createHashRouter([
       { path: "/library/artists", element: page("P-05", "pages.artists.title", "pages.artists.desc") },
       { path: "/library/artists/:id", element: page("P-05", "pages.artist.title", "pages.artist.desc") },
       { path: "/library/genres", element: page("P-06", "pages.genres.title", "pages.genres.desc") },
-      { path: "/playlists", element: page("P-07", "pages.playlists.title", "pages.playlists.desc") },
-      { path: "/playlists/:id", element: page("P-07", "pages.playlist.title", "pages.playlist.desc") },
+      { path: "/playlists", element: <Playlists /> },
+      { path: "/playlists/:id", element: <PlaylistDetail /> },
       { path: "/search", element: page("P-08", "pages.search.title", "pages.search.desc") },
       { path: "/lyrics/:trackId", element: page("P-09", "pages.lyrics.title", "pages.lyrics.desc") },
       { path: "/equalizer", element: page("P-10", "pages.equalizer.title", "pages.equalizer.desc") },

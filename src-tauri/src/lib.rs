@@ -57,6 +57,14 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_tracks,
             commands::library::library_track_count,
             commands::library::library_search,
+            commands::library::playlist_list,
+            commands::library::playlist_create,
+            commands::library::playlist_rename,
+            commands::library::playlist_delete,
+            commands::library::playlist_items,
+            commands::library::playlist_add_tracks,
+            commands::library::playlist_remove_item,
+            commands::library::playlist_move_item,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
@@ -69,6 +77,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<LibraryScanDto>()
         .typ::<LibraryScanStatusDto>()
         .typ::<LibraryTrackDto>()
+        .typ::<biu_ipc::PlaylistDto>()
+        .typ::<biu_ipc::PlaylistItemDto>()
 }
 
 #[derive(Clone)]

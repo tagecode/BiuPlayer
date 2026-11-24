@@ -37,6 +37,14 @@ export const commands = {
 	libraryTracks: (limit: number, offset: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_tracks", { limit, offset }, options),
 	libraryTrackCount: (options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_track_count", undefined, options),
 	librarySearch: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_search", { query, limit }, options),
+	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),
+	playlistCreate: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_create", { name }, options),
+	playlistRename: (id: number | null, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_rename", { id, name }, options),
+	playlistDelete: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_delete", { id }, options),
+	playlistItems: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlaylistItemDto_Serialize[]>("playlist_items", { id }, options),
+	playlistAddTracks: (id: number | null, trackIds: (number | null)[], options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_add_tracks", { id, trackIds }, options),
+	playlistRemoveItem: (id: number | null, position: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_remove_item", { id, position }, options),
+	playlistMoveItem: (id: number | null, from: number | null, to: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_move_item", { id, from, to }, options),
 };
 
 /* Types */
@@ -190,6 +198,24 @@ export type PlayerStateDto_Serialize = {
 	finished: boolean,
 	device_lost: boolean,
 	seq: number | null,
+};
+
+export type PlaylistDto = {
+	id: number | null,
+	name: string,
+	track_count: number | null,
+};
+
+export type PlaylistItemDto = PlaylistItemDto_Serialize | PlaylistItemDto_Deserialize;
+
+export type PlaylistItemDto_Deserialize = {
+	position: number | null,
+	track: LibraryTrackDto_Deserialize,
+};
+
+export type PlaylistItemDto_Serialize = {
+	position: number | null,
+	track: LibraryTrackDto_Serialize,
 };
 
 export type QueueItemDto = QueueItemDto_Serialize | QueueItemDto_Deserialize;

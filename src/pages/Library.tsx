@@ -3,6 +3,7 @@ import {
   commands,
   type LibraryScanStatusDto_Serialize,
   type LibraryTrackDto_Serialize,
+  type PlaylistDto,
   type QueueItemDto_Serialize,
 } from "../bindings";
 
@@ -27,17 +28,22 @@ export function Library() {
   const [hits, setHits] = useState<LibraryTrackDto_Serialize[]>([]);
   const [query, setQuery] = useState("");
   const [count, setCount] = useState(0);
+  const [playlists, setPlaylists] = useState<PlaylistDto[]>([]);
+  const [targetPlaylist, setTargetPlaylist] = useState("");
   const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
   const busy = scan?.state === "scanning" || scan?.state === "cancelling";
 
   const refresh = useCallback(async () => {
-    const [list, total] = await Promise.all([
+    const [list, total, lists] = await Promise.all([
       commands.libraryTracks(500, 0),
       commands.libraryTrackCount(),
+      commands.playlistList(),
     ]);
     setTracks(list);
     setCount(total ?? 0);
+    setPlaylists(lists);
+    setTargetPlaylist((current) => current || String(lists[0]?.id ?? ""));
   }, []);
 
   useEffect(() => {
@@ -135,6 +141,19 @@ export function Library() {
     }
   }
 
+  async function addToPlaylist(track: LibraryTrackDto_Serialize) {
+    if (!targetPlaylist) {
+      setMessage("先创建一个播放列表");
+      return;
+    }
+    try {
+      const added = await commands.playlistAddTracks(Number(targetPlaylist), [track.id]);
+      setMessage((added ?? 0) > 0 ? `已加入：${track.title}` : "该曲目已在播放列表中");
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }
+
   const visible = query.trim() ? hits : tracks;
 
   return (
@@ -202,6 +221,27 @@ export function Library() {
             </button>
           </div>
         </div>
+        <div className="library-playlist">
+          <label>
+            目标播放列表
+            <select
+              value={targetPlaylist}
+              onChange={(event) => setTargetPlaylist(event.target.value)}
+              disabled={playlists.length === 0}
+            >
+              {playlists.length === 0 ? (
+                <option value="">先创建播放列表</option>
+              ) : (
+                playlists.map((item) => (
+                  <option key={item.id} value={String(item.id)}>
+                    {item.name}（{item.track_count} 首）
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <span className="muted">在曲目行点“加入”追加到所选列表</span>
+        </div>
         {visible.length === 0 ? (
           <p className="muted">
             {query.trim()
@@ -229,9 +269,19 @@ export function Library() {
                   <td>{formatDuration(track.duration_ms)}</td>
                   <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>
                   <td>
-                    <button type="button" className="ghost" onClick={() => play(track)}>
-                      播放
-                    </button>
+                    <div className="row-actions">
+                      <button type="button" className="ghost" onClick={() => play(track)}>
+                        播放
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => addToPlaylist(track)}
+                        disabled={playlists.length === 0}
+                      >
+                        加入
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
