@@ -1,0 +1,105 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+            name: linux-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            name: windows-x64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            bundles: dmg
+            name: macos-x64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            bundles: dmg
+            name: macos-arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libasound2-dev \
+            libfuse2 \
+            rpm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.99.1
+          target: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build bundles
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Package portable zip
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $out = "src-tauri/target/${{ matrix.target }}/release"
+          New-Item -ItemType Directory -Force -Path "$out/portable" | Out-Null
+          Copy-Item "$out/biuplayer.exe" "$out/portable/"
+          if (Test-Path "$out/WebView2Loader.dll") {
+            Copy-Item "$out/WebView2Loader.dll" "$out/portable/"
+          }
+          New-Item -ItemType Directory -Force -Path "$out/bundle" | Out-Null
+          Compress-Archive -Path "$out/portable/*" -DestinationPath "$out/bundle/BiuPlayer_0.1.0_x64-portable.zip"
+
+      - name: List bundles
+        shell: bash
+        run: find "src-tauri/target/${{ matrix.target }}/release/bundle" -type f -maxdepth 4 -print 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biuplayer-${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*
