@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { commands, type SettingsDto, type SettingsPatch_Deserialize } from "../bindings";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  commands,
+  type AppInfo,
+  type SettingsDto,
+  type SettingsPatch_Deserialize,
+} from "../bindings";
 import { useI18n, type Lang } from "../i18n";
 import { applyTheme } from "../theme";
 
@@ -7,6 +13,11 @@ export function Settings() {
   const { t, lang, setLang } = useI18n();
   const [settings, setSettings] = useState<SettingsDto | null>(null);
   const [message, setMessage] = useState("");
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+
+  useEffect(() => {
+    commands.appInfo().then(setAppInfo).catch(() => {});
+  }, []);
 
   useEffect(() => {
     commands
@@ -186,6 +197,41 @@ export function Settings() {
               onChange={(event) => update({ reduceMotion: event.target.checked })}
             />
           </label>
+        </div>
+
+        <div className="settings-card">
+          <h3>关于</h3>
+          <p>
+            博音 BiuPlayer {appInfo?.version ?? ""}
+          </p>
+          <p className="muted">
+            {appInfo ? `${appInfo.os} / ${appInfo.arch} · Tauri ${appInfo.tauri_version}` : ""}
+          </p>
+          <p className="muted">MIT License · 不联网、不采集遥测、不要求账号。</p>
+          <div className="setting-row">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() =>
+                openUrl("https://github.com/tagecode/BiuPlayer/releases").catch((error) =>
+                  setMessage(String(error)),
+                )
+              }
+            >
+              检查更新
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() =>
+                openUrl("https://github.com/tagecode/BiuPlayer/blob/main/LICENSE").catch(
+                  (error) => setMessage(String(error)),
+                )
+              }
+            >
+              开源许可
+            </button>
+          </div>
         </div>
 
         <div className="settings-card">
