@@ -25,6 +25,16 @@ pub struct TestTick {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AppPathsInfo {
+    pub data_dir: String,
+    pub cache_dir: String,
+    pub log_dir: String,
+    pub settings_file: String,
+    pub database_file: String,
+    pub portable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct AudioDevice {
     pub name: String,
     pub is_default: bool,

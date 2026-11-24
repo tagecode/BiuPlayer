@@ -1,19 +1,17 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use biu_ipc::{AppInfo, AudioDevice, PingReply, TestTick};
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick};
+use tauri::{AppHandle, Emitter, Runtime, State};
+
+use crate::AppPathsState;
 
 pub const TEST_TICK: &str = "test:tick";
 
 #[tauri::command]
 #[specta::specta]
-pub fn app_info(app: AppHandle) -> AppInfo {
+pub fn app_info(app: AppHandle, paths: State<'_, AppPathsState>) -> AppInfo {
     let package = app.package_info();
-    let log_dir = app
-        .path()
-        .app_log_dir()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|_| "<unavailable>".into());
+    let log_dir = paths.0.log_dir.display().to_string();
     AppInfo {
         name: package.name.clone(),
         version: package.version.to_string(),
@@ -74,6 +72,19 @@ pub fn audio_devices() -> Result<Vec<AudioDevice>, String> {
                 .collect()
         })
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn app_paths(paths: State<'_, AppPathsState>) -> AppPathsInfo {
+    AppPathsInfo {
+        data_dir: paths.0.data_dir.display().to_string(),
+        cache_dir: paths.0.cache_dir.display().to_string(),
+        log_dir: paths.0.log_dir.display().to_string(),
+        settings_file: paths.0.settings_file.display().to_string(),
+        database_file: paths.0.database_file.display().to_string(),
+        portable: paths.0.portable,
+    }
 }
 
 fn now_ms() -> f64 {

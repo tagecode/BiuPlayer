@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { commands } from "./bindings";
-import type { AppInfo, AudioDevice, PingReply, TestTick } from "./bindings";
+import type { AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick } from "./bindings";
 import "./App.css";
 
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -9,6 +9,7 @@ const inTauri = "__TAURI_INTERNALS__" in window;
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [infoError, setInfoError] = useState("");
+  const [paths, setPaths] = useState<AppPathsInfo | null>(null);
   const [pingInput, setPingInput] = useState("hello biu");
   const [pingReply, setPingReply] = useState<PingReply | null>(null);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
@@ -28,6 +29,10 @@ function App() {
     commands
       .appInfo()
       .then(setInfo)
+      .catch((err) => setInfoError(String(err)));
+    commands
+      .appPaths()
+      .then(setPaths)
       .catch((err) => setInfoError(String(err)));
   }, []);
 
@@ -130,7 +135,15 @@ function App() {
             </div>
             <div className="wide">
               <dt>日志目录</dt>
-              <dd className="mono">{info?.log_dir ?? "—"}</dd>
+              <dd className="mono">{paths?.log_dir ?? info?.log_dir ?? "—"}</dd>
+            </div>
+            <div className="wide">
+              <dt>数据目录</dt>
+              <dd className="mono">{paths?.data_dir ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>便携模式</dt>
+              <dd>{paths ? (paths.portable ? "已启用" : "未启用") : "—"}</dd>
             </div>
           </dl>
         </section>

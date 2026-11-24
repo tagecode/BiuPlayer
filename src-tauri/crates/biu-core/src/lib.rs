@@ -2,6 +2,16 @@
 //!
 //! This crate intentionally has no dependency on Tauri, SQLite, or audio APIs.
 
+pub mod paths;
+pub mod settings;
+
+pub use paths::AppPaths;
+pub use settings::{
+    load_settings, save_settings, AudioSettings, DspSettings, GeneralSettings, LibrarySettings,
+    LoadedSettings, LyricsSettings, PlaybackSettings, Settings, SettingsWarning, UiSettings,
+    CURRENT_SCHEMA_VERSION,
+};
+
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};

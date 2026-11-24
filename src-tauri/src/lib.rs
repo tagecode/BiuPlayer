@@ -1,10 +1,12 @@
 pub mod commands;
 mod logging;
 
+use std::path::Path;
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
 
-use biu_ipc::{AppInfo, AudioDevice, PingReply, TestTick};
+use biu_core::AppPaths;
+use biu_ipc::{AppInfo, AppPathsInfo, AudioDevice, PingReply, TestTick};
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
 use tauri::Manager;
@@ -22,12 +24,17 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::app_ping,
             commands::system::emit_test_events,
             commands::system::audio_devices,
+            commands::system::app_paths,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
         .typ::<TestTick>()
         .typ::<AudioDevice>()
+        .typ::<AppPathsInfo>()
 }
+
+#[derive(Clone)]
+pub struct AppPathsState(pub AppPaths);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -43,9 +50,34 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            let (guard, log_dir) = logging::init(app.handle())
+            let exe = std::env::current_exe().map_err(|err| {
+                std::io::Error::other(format!("cannot resolve executable: {err}"))
+            })?;
+            let exe_dir = exe.parent().unwrap_or_else(|| Path::new("."));
+            let paths = AppPaths::resolve(exe_dir);
+            paths.ensure().map_err(|err| {
+                std::io::Error::other(format!("cannot create app directories: {err}"))
+            })?;
+            let (guard, log_dir) = logging::init(&paths.log_dir)
                 .map_err(|err| std::io::Error::other(format!("logging init failed: {err}")))?;
+            let loaded = biu_core::load_settings(&paths.settings_file);
+            if let Some(warning) = &loaded.warning {
+                tracing::warn!(%warning, "settings recovered");
+            }
+            if !loaded.read_only && !paths.settings_file.exists() {
+                biu_core::save_settings(&paths.settings_file, &loaded.settings).map_err(|err| {
+                    std::io::Error::other(format!("cannot write default settings: {err}"))
+                })?;
+                tracing::info!(settings = %paths.settings_file.display(), "default settings written");
+            }
+            tracing::info!(
+                portable = paths.portable,
+                data_dir = %paths.data_dir.display(),
+                log_dir = %log_dir.display(),
+                "application paths resolved"
+            );
             app.manage(guard);
+            app.manage(AppPathsState(paths));
             println!("BiuPlayer logs: {}", log_dir.display());
             Ok(())
         })

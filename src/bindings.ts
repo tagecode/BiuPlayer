@@ -9,6 +9,7 @@ export const commands = {
 	appPing: (payload: string, options?: InvokeOptions) => __TAURI_INVOKE<PingReply>("app_ping", { payload }, options),
 	emitTestEvents: (count: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("emit_test_events", { count }, options),
 	audioDevices: (options?: InvokeOptions) => __TAURI_INVOKE<AudioDevice[]>("audio_devices", undefined, options),
+	appPaths: (options?: InvokeOptions) => __TAURI_INVOKE<AppPathsInfo>("app_paths", undefined, options),
 };
 
 /* Types */
@@ -19,6 +20,15 @@ export type AppInfo = {
 	os: string,
 	arch: string,
 	log_dir: string,
+};
+
+export type AppPathsInfo = {
+	data_dir: string,
+	cache_dir: string,
+	log_dir: string,
+	settings_file: string,
+	database_file: string,
+	portable: boolean,
 };
 
 export type AudioDevice = {
