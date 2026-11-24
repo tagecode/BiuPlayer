@@ -48,3 +48,44 @@ pub fn lyrics_load(path: String) -> Result<Option<LyricsDto>, CommandError> {
         Err(err) => Err(CommandError::internal(err.to_string())),
     }
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn desktop_lyrics_toggle(app: tauri::AppHandle) -> Result<bool, CommandError> {
+    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(window) = app.get_webview_window("desktop-lyrics") {
+        let visible = window
+            .is_visible()
+            .map_err(|err| CommandError::internal(err.to_string()))?;
+        if visible {
+            window
+                .hide()
+                .map_err(|err| CommandError::internal(err.to_string()))?;
+            return Ok(false);
+        }
+        window
+            .show()
+            .map_err(|err| CommandError::internal(err.to_string()))?;
+        window
+            .set_focus()
+            .map_err(|err| CommandError::internal(err.to_string()))?;
+        return Ok(true);
+    }
+
+    WebviewWindowBuilder::new(
+        &app,
+        "desktop-lyrics",
+        WebviewUrl::App("index.html#/desktop-lyrics".into()),
+    )
+    .title("BiuPlayer 桌面歌词")
+    .inner_size(880.0, 180.0)
+    .min_inner_size(480.0, 120.0)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(true)
+    .build()
+    .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(true)
+}

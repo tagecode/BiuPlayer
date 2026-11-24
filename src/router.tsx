@@ -7,6 +7,7 @@ import { Albums } from "./pages/Albums";
 import { ArtistDetail } from "./pages/ArtistDetail";
 import { Artists } from "./pages/Artists";
 import { NowPlaying } from "./pages/NowPlaying";
+import { DesktopLyrics } from "./pages/DesktopLyrics";
 import { Settings } from "./pages/Settings";
 import { PlaylistDetail } from "./pages/PlaylistDetail";
 import { Playlists } from "./pages/Playlists";
@@ -19,6 +20,7 @@ function page(pageId: string, titleKey: MessageKey, descKey: MessageKey) {
 }
 
 export const router = createHashRouter([
+  { path: "/desktop-lyrics", element: <DesktopLyrics /> },
   {
     element: <Shell />,
     children: [

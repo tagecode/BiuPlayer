@@ -43,6 +43,7 @@ export const commands = {
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
 	lyricsLoad: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LyricsDto_Serialize | null>("lyrics_load", { path }, options),
+	desktopLyricsToggle: (options?: InvokeOptions) => __TAURI_INVOKE<boolean>("desktop_lyrics_toggle", undefined, options),
 	settingsGet: (options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_get", undefined, options),
 	settingsUpdate: (patch: SettingsPatch_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_update", { patch }, options),
 	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),

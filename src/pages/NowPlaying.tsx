@@ -196,6 +196,9 @@ export function NowPlaying() {
             <span className="pill">
               {lyrics ? `${lyrics.lines.length} 行` : lyricsLoading ? "加载中" : "无"}
             </span>
+            <button className="ghost small" onClick={() => run(() => commands.desktopLyricsToggle())}>
+              桌面歌词
+            </button>
           </div>
           {!hasTrack && <p className="muted">播放歌曲后自动加载同名 .lrc。</p>}
           {hasTrack && !lyricsLoading && !lyrics && (
