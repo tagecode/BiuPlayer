@@ -977,15 +977,35 @@ impl Database {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<TrackListItem>, LibraryError> {
-        let mut stmt = self.conn.prepare(
+        self.list_tracks_sorted(limit, offset, "title", false)
+    }
+
+    pub fn list_tracks_sorted(
+        &self,
+        limit: usize,
+        offset: usize,
+        sort: &str,
+        descending: bool,
+    ) -> Result<Vec<TrackListItem>, LibraryError> {
+        let order = match sort {
+            "artist" => "ar.name COLLATE NOCASE",
+            "album" => "al.title COLLATE NOCASE",
+            "duration" => "t.duration_ms",
+            "added" => "t.added_at",
+            "path" => "t.path COLLATE NOCASE",
+            _ => "t.title COLLATE NOCASE",
+        };
+        let direction = if descending { "DESC" } else { "ASC" };
+        let sql = format!(
             "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
              FROM tracks t
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
              WHERE t.missing = 0
-             ORDER BY t.title COLLATE NOCASE, t.id
-             LIMIT ?1 OFFSET ?2",
-        )?;
+             ORDER BY {order} {direction}, t.id {direction}
+             LIMIT ?1 OFFSET ?2"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params![limit as i64, offset as i64], |row| {
             Ok(TrackListItem {
                 id: row.get(0)?,

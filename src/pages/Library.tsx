@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   commands,
   type LibraryScanStatusDto_Serialize,
@@ -6,6 +6,13 @@ import {
   type PlaylistDto,
   type QueueItemDto_Serialize,
 } from "../bindings";
+
+const PAGE_SIZE = 200;
+const ROW_HEIGHT = 36;
+const VIEWPORT_HEIGHT = 480;
+const OVERSCAN = 6;
+
+type TrackSort = "title" | "artist" | "album" | "duration" | "added";
 
 function errorText(error: unknown): string {
   if (typeof error === "string") return error;
@@ -22,26 +29,44 @@ function formatDuration(ms: number | null): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function toQueueItem(track: LibraryTrackDto_Serialize): QueueItemDto_Serialize {
+  return {
+    path: track.path,
+    title: track.title,
+    artist: track.artist ?? null,
+    album: track.album ?? null,
+    duration_ms: track.duration_ms ?? null,
+  };
+}
+
 export function Library() {
   const [folder, setFolder] = useState("");
-  const [tracks, setTracks] = useState<LibraryTrackDto_Serialize[]>([]);
+  const [tracks, setTracks] = useState<Record<number, LibraryTrackDto_Serialize>>({});
   const [hits, setHits] = useState<LibraryTrackDto_Serialize[]>([]);
   const [query, setQuery] = useState("");
   const [count, setCount] = useState(0);
+  const [sort, setSort] = useState<TrackSort>("title");
+  const [descending, setDescending] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
   const [playlists, setPlaylists] = useState<PlaylistDto[]>([]);
   const [targetPlaylist, setTargetPlaylist] = useState("");
   const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inFlight = useRef(new Set<number>());
+  const generation = useRef(0);
   const busy = scan?.state === "scanning" || scan?.state === "cancelling";
+  const searching = query.trim().length > 0;
 
   const refresh = useCallback(async () => {
-    const [list, total, lists] = await Promise.all([
-      commands.libraryTracks(500, 0),
+    const [total, lists] = await Promise.all([
       commands.libraryTrackCount(),
       commands.playlistList(),
     ]);
-    setTracks(list);
     setCount(total ?? 0);
+    setTracks({});
+    generation.current += 1;
+    inFlight.current.clear();
     setPlaylists(lists);
     setTargetPlaylist((current) => current || String(lists[0]?.id ?? ""));
   }, []);
@@ -80,6 +105,50 @@ export function Library() {
     }, 500);
     return () => window.clearInterval(timer);
   }, [scan?.state, refresh]);
+
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const end = Math.min(
+    count,
+    start + Math.ceil(VIEWPORT_HEIGHT / ROW_HEIGHT) + OVERSCAN * 2,
+  );
+
+  useEffect(() => {
+    if (searching || count === 0) return;
+    const firstPage = Math.floor(start / PAGE_SIZE) * PAGE_SIZE;
+    const requestGeneration = generation.current;
+    for (let offset = firstPage; offset < end; offset += PAGE_SIZE) {
+      if (inFlight.current.has(offset)) continue;
+      inFlight.current.add(offset);
+      commands
+        .libraryTracks(PAGE_SIZE, offset, sort, descending)
+        .then((list) => {
+          if (requestGeneration !== generation.current) return;
+          setTracks((previous) => {
+            const next = { ...previous };
+            list.forEach((track, index) => {
+              next[offset + index] = track;
+            });
+            return next;
+          });
+        })
+        .catch((error) => setMessage(errorText(error)))
+        .finally(() => inFlight.current.delete(offset));
+    }
+  }, [start, end, sort, descending, count, searching]);
+
+  function changeSort(next: TrackSort) {
+    setScrollTop(0);
+    setTracks({});
+    generation.current += 1;
+    inFlight.current.clear();
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (sort === next) {
+      setDescending((value) => !value);
+    } else {
+      setSort(next);
+      setDescending(false);
+    }
+  }
 
   async function startScan() {
     const path = folder.trim();
@@ -122,19 +191,22 @@ export function Library() {
     }
   }
 
-  async function play(track: LibraryTrackDto_Serialize) {
-    const list = query.trim() ? hits : tracks;
-    if (list.length === 0) return;
-    const items: QueueItemDto_Serialize[] = list.map((entry) => ({
-      path: entry.path,
-      title: entry.title,
-      artist: entry.artist ?? null,
-      album: entry.album ?? null,
-      duration_ms: entry.duration_ms ?? null,
-    }));
-    const index = Math.max(0, list.findIndex((entry) => entry.path === track.path));
+  async function playAt(index: number) {
     try {
-      await commands.playerPlayQueue(items, index, "list_loop");
+      const offset = Math.max(0, index - 250);
+      const list = await commands.libraryTracks(500, offset, sort, descending);
+      if (list.length === 0) return;
+      const startIndex = Math.min(index - offset, list.length - 1);
+      await commands.playerPlayQueue(list.map(toQueueItem), startIndex, "list_loop");
+      setMessage(`正在播放：${list[startIndex]?.title ?? ""}`);
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }
+
+  async function playSingle(track: LibraryTrackDto_Serialize) {
+    try {
+      await commands.playerPlayQueue([toQueueItem(track)], 0, "list_loop");
       setMessage(`正在播放：${track.title}`);
     } catch (error) {
       setMessage(errorText(error));
@@ -154,14 +226,15 @@ export function Library() {
     }
   }
 
-  const visible = query.trim() ? hits : tracks;
+  const sortMark = (column: TrackSort) =>
+    sort === column ? (descending ? " ↓" : " ↑") : "";
 
   return (
     <section className="page">
       <div className="page-head">
         <span className="page-kicker">P-02</span>
         <h2>媒体库</h2>
-        <p>{count} 首曲目 · 当前显示前 500 首</p>
+        <p>{count.toLocaleString()} 首曲目 · 虚拟滚动</p>
       </div>
 
       <div className="card">
@@ -242,51 +315,134 @@ export function Library() {
           </label>
           <span className="muted">在曲目行点“加入”追加到所选列表</span>
         </div>
-        {visible.length === 0 ? (
-          <p className="muted">
-            {query.trim()
-              ? "没有匹配的曲目，试试标题、艺术家、专辑或拼音首字母。"
-              : "还没有曲目。添加一个包含音频文件的目录开始扫描。"}
-          </p>
-        ) : (
-          <table className="track-table">
-            <thead>
-              <tr>
-                <th>标题</th>
-                <th>艺术家</th>
-                <th>专辑</th>
-                <th>时长</th>
-                <th>格式</th>
-                <th aria-label="操作" />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((track) => (
-                <tr key={track.path}>
-                  <td title={track.path}>{track.title}</td>
-                  <td>{track.artist ?? "未知艺术家"}</td>
-                  <td>{track.album ?? "未知专辑"}</td>
-                  <td>{formatDuration(track.duration_ms)}</td>
-                  <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button type="button" className="ghost" onClick={() => play(track)}>
-                        播放
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => addToPlaylist(track)}
-                        disabled={playlists.length === 0}
-                      >
-                        加入
-                      </button>
-                    </div>
-                  </td>
+
+        {searching ? (
+          hits.length === 0 ? (
+            <p className="muted">没有匹配的曲目，试试标题、艺术家、专辑或拼音首字母。</p>
+          ) : (
+            <table className="track-table">
+              <thead>
+                <tr>
+                  <th>标题</th>
+                  <th>艺术家</th>
+                  <th>专辑</th>
+                  <th>时长</th>
+                  <th>格式</th>
+                  <th aria-label="操作" />
                 </tr>
+              </thead>
+              <tbody>
+                {hits.map((track) => (
+                  <tr key={track.path}>
+                    <td title={track.path}>{track.title}</td>
+                    <td>{track.artist ?? "未知艺术家"}</td>
+                    <td>{track.album ?? "未知专辑"}</td>
+                    <td>{formatDuration(track.duration_ms)}</td>
+                    <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" className="ghost" onClick={() => playSingle(track)}>
+                          播放
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => addToPlaylist(track)}
+                          disabled={playlists.length === 0}
+                        >
+                          加入
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : count === 0 ? (
+          <p className="muted">还没有曲目。添加一个包含音频文件的目录开始扫描。</p>
+        ) : (
+          <div className="track-virtual">
+            <div className="track-head">
+              {(
+                [
+                  ["title", "标题"],
+                  ["artist", "艺术家"],
+                  ["album", "专辑"],
+                  ["duration", "时长"],
+                ] as Array<[TrackSort, string]>
+              ).map(([column, label]) => (
+                <button
+                  key={column}
+                  type="button"
+                  className="track-sort"
+                  onClick={() => changeSort(column)}
+                >
+                  {label}
+                  {sortMark(column)}
+                </button>
               ))}
-            </tbody>
-          </table>
+              <span className="mono">格式</span>
+              <span aria-hidden="true" />
+            </div>
+            <div
+              className="track-scroll"
+              ref={scrollRef}
+              style={{ height: VIEWPORT_HEIGHT }}
+              onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+            >
+              <div
+                className="track-spacer"
+                style={{ height: count * ROW_HEIGHT }}
+              >
+                {Array.from({ length: end - start }, (_, offset) => {
+                  const index = start + offset;
+                  const track = tracks[index];
+                  return (
+                    <div
+                      key={index}
+                      className="track-row"
+                      style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
+                      onDoubleClick={() => playAt(index)}
+                    >
+                      {track ? (
+                        <>
+                          <span className="track-title" title={track.path}>
+                            {track.title}
+                          </span>
+                          <span>{track.artist ?? "未知艺术家"}</span>
+                          <span>{track.album ?? "未知专辑"}</span>
+                          <span className="mono">{formatDuration(track.duration_ms)}</span>
+                          <span className="mono">
+                            {track.format?.toUpperCase() ?? "-"}
+                          </span>
+                          <span className="row-actions">
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => playAt(index)}
+                            >
+                              播放
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => addToPlaylist(track)}
+                              disabled={playlists.length === 0}
+                            >
+                              加入
+                            </button>
+                          </span>
+                        </>
+                      ) : (
+                        <span className="track-placeholder">加载中…</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </section>

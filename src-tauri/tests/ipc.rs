@@ -140,8 +140,8 @@ fn library_add_folder_scans_fixtures() {
     assert_eq!(report.files_seen, 7.0);
     assert_eq!(report.total_tracks, 7.0);
 
-    let tracks =
-        biuplayer_lib::commands::library::library_tracks(100, 0, app.state()).expect("list");
+    let tracks = biuplayer_lib::commands::library::library_tracks(100, 0, None, None, app.state())
+        .expect("list");
     assert_eq!(tracks.len(), 7);
     assert!(tracks
         .iter()

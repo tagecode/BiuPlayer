@@ -259,6 +259,8 @@ fn track_dto(track: TrackListItem) -> LibraryTrackDto {
 pub fn library_tracks(
     limit: u32,
     offset: u32,
+    sort: Option<String>,
+    descending: Option<bool>,
     state: State<'_, LibraryState>,
 ) -> Result<Vec<LibraryTrackDto>, CommandError> {
     let guard = lock_db(&state);
@@ -266,7 +268,12 @@ pub fn library_tracks(
         return Ok(Vec::new());
     };
     let tracks = database
-        .list_tracks(limit.min(1000) as usize, offset as usize)
+        .list_tracks_sorted(
+            limit.min(1000) as usize,
+            offset as usize,
+            sort.as_deref().unwrap_or("title"),
+            descending.unwrap_or(false),
+        )
         .map_err(|err| CommandError::internal(err.to_string()))?;
     Ok(tracks.into_iter().map(track_dto).collect())
 }

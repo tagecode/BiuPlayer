@@ -633,3 +633,84 @@ body {
 .desktop-lyrics-title { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; color: #9aa4b2; }
 .desktop-lyrics-current { margin: 0; font-size: clamp(22px, 4vw, 38px); font-weight: 700; line-height: 1.35; text-shadow: 0 2px 12px rgba(0,0,0,0.5); }
 .desktop-lyrics-next { margin: 8px 0 0; font-size: 15px; color: #9aa4b2; min-height: 1.4em; }
+
+.track-virtual {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.track-head,
+.track-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 64px 60px 150px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.track-head {
+  height: 34px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+
+.track-sort {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.track-sort:hover {
+  color: var(--text);
+}
+
+.track-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  contain: strict;
+}
+
+.track-spacer {
+  position: relative;
+}
+
+.track-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.track-row:hover {
+  background: var(--panel-2);
+}
+
+.track-row > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track-title {
+  font-weight: 500;
+}
+
+.track-placeholder {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.track-row .row-actions {
+  justify-content: flex-end;
+}
