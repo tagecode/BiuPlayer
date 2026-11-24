@@ -1,40 +1,59 @@
 # M0-06 Linux 兼容性报告
 
-- 日期：2026-11-24
-- 状态：**未执行**（没有 Linux 开发机/容器）
-- 结论：M0 出口的 Linux 项未关闭；不能宣称 MVP 支持 Ubuntu。
+日期：2026-11-24
+任务：M0-06 Linux 兼容性验证（2 人日）
+状态：**部分通过**（Ubuntu 22.04 构建 + 运行冒烟通过；20.04/24.04 与真实桌面未测）
 
-## 1. 已知约束
+## 1. 环境与依赖
 
-| 项 | 结论 |
-|---|---|
-| Tauri 2 运行时 | 依赖 WebKitGTK **4.1**（`libwebkit2gtk-4.1-dev`） |
-| Ubuntu 22.04 | 默认源提供 4.1，理论可用，未实测 |
-| Ubuntu 24.04 | 提供 4.1，理论可用，未实测 |
-| Ubuntu 20.04 | 仅 WebKitGTK 4.0，**不能直接运行 Tauri 2**；与 FeatureList/PRD 的 22.04 基线一致，20.04 仅做探测 |
-| 音频 | 需要 ALSA/PulseAudio；CI 容器无声卡，只能验设备枚举与编译，不能验真实出声 |
-| 打包 | AppImage 需要 `linuxdeploy`/FUSE；deb/rpm 需要 `libwebkit2gtk-4.1-dev` 与 `patchelf` |
+- runner：`ubuntu-22.04`（GitHub Actions）
+- WebKit：`libwebkit2gtk-4.1-dev`（Tauri 2 必需）
+- 其他：`libappindicator3-dev`、`librsvg2-dev`、`patchelf`、`libasound2-dev`、`libfuse2`、`rpm`、`xvfb`
+- Rust：1.99.1；Node 22；pnpm 10
 
-## 2. 待执行清单
+## 2. 构建
 
-1. 在 Ubuntu 22.04 与 24.04 真机/VM 上安装依赖：
-   ```bash
-   sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
-   ```
-2. `pnpm tauri dev` 启动，确认窗口、IPC、日志目录（`~/.local/share/com.tagecode.biuplayer/logs` 或 XDG 路径）。
-3. `cargo test --workspace`；`cargo run -p biu-audio --example output_probe -- 44100`（有声卡时）。
-4. `pnpm tauri build` 产出 AppImage/deb/rpm，记录体积与启动时间。
-5. 在 Wayland 与 X11 各跑一次，记录缩放/窗口装饰差异。
-6. 20.04 仅记录“WebKitGTK 4.0 不满足，安装 4.1 失败/成功”的探测结果，不承诺支持。
+`release.yml` 的 `linux-x64` 作业在 Ubuntu 22.04 上执行：
 
-## 3. 现有 CI
+```bash
+pnpm tauri build --target x86_64-unknown-linux-gnu --bundles appimage,deb,rpm
+```
 
-`.github/workflows/ci.yml` 已包含 `ubuntu-22.04` job，安装 WebKitGTK 4.1 依赖并跑 `pnpm build`、`cargo fmt/clippy/test`、`pnpm tauri build --no-bundle`。该 job 尚未在 GitHub Actions 实际运行，不能替代真机报告。
+结果：
 
-## 4. 对 M0 出口的影响
+- AppImage：83,462,648 B
+- deb：5,324,344 B
+- rpm：5,329,657 B
+- 作业 success，run 45320213684。
 
-M0 出口要求“三平台各出一个可运行产物”。当前只有 macOS 本机验证；Linux 与 Windows 均未产出，M0 **未达出口**。建议下一步：
+## 3. 运行冒烟
 
-- 本地用 Docker/UTM 起 Ubuntu 22.04 做一次编译+启动；
-- 推送到 GitHub 触发 CI，拿到三平台日志；
-- 再决定是否进入 E1，或先补 Linux/Windows 冒烟。
+`ci.yml` 新增 `Linux runtime smoke`：
+
+```bash
+timeout --signal=TERM --kill-after=5 45s \
+  xvfb-run -a src-tauri/target/release/biuplayer
+# 期望 timeout 返回 124
+grep -q "logging initialized" ~/.local/share/biuplayer/logs/biu.log.*
+```
+
+环境变量：`LIBGL_ALWAYS_SOFTWARE=1`、`WEBKIT_DISABLE_COMPOSITING_MODE=1`、`WEBKIT_DISABLE_DMABUF_RENDERER=1`、`GDK_BACKEND=x11`。
+
+结果：run 45321447571 的 `check (ubuntu-22.04)` success；应用在 Xvfb 下保持运行至超时，日志目录与启动日志生成。
+
+## 4. 结论与限制
+
+已验证：
+
+- Ubuntu 22.04 + WebKitGTK 4.1 可编译、可启动。
+- 三件 Linux 产物均可构建。
+- 启动路径使用 XDG 目录（`~/.local/share/biuplayer`、`~/.cache/biuplayer`）。
+
+未验证/风险：
+
+- **Ubuntu 20.04 不可用**：只有 WebKitGTK 4.0，Tauri 2 需要 4.1；Arch/PRD 已将 22.04 设为基线，20.04 仅探测。
+- **Ubuntu 24.04** 未单独跑；其 WebKitGTK 4.1 版本较新，预计可用但未验证。
+- **真实桌面/Wayland** 未测；Xvfb 是 X11 软渲染，不代表 GPU/合成器路径。
+- **音频设备** 未测：CI 无声卡，`cpal` 设备枚举与播放需真机补测。
+- AppImage 未在 CI 内以 `--appimage-extract-and-run` 启动；当前冒烟跑的是 release 二进制。
+- 未测托盘、全局快捷键、文件关联（M2 范围）。

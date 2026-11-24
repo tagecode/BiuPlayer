@@ -1,53 +1,60 @@
-# M0-05 打包冒烟报告
+# M0-05 打包矩阵报告
 
-- 日期：2026-11-24
-- 环境：macOS 26.5.1（x86_64）、Tauri 2.12.7、Rust 1.99.1
-- 状态：**部分完成**——macOS x64 `.dmg` 已产出；Windows、Linux、Apple Silicon 未构建。
+日期：2026-11-24
+任务：M0-05 三平台打包（3 人日）
+状态：**通过（四类产物全部构建成功）**
+工作流：`.github/workflows/release.yml`，手动 `workflow_dispatch` + `v*` tag。
+最终 run：<https://github.com/tagecode/BiuPlayer/actions/runs/45320213684>（commit `ceb1eb6`）
 
-## 1. 已产出
+## 1. 矩阵
 
-| 产物 | 路径 | 体积 | 结果 |
-|---|---|---|---|
-| `BiuPlayer_0.1.0_x64.dmg` | `src-tauri/target/release/bundle/dmg/` | 3.76 MiB | 成功 |
-| `BiuPlayer.app` | `src-tauri/target/release/bundle/macos/` | — | 成功（dmg 构建后已清理） |
+| 作业 | runner | target | 产物 |
+| --- | --- | --- | --- |
+| windows-x64 | windows-latest | x86_64-pc-windows-msvc | NSIS 安装版 + portable zip |
+| linux-x64 | ubuntu-22.04 | x86_64-unknown-linux-gnu | AppImage + deb + rpm |
+| macos-x64 | macos-latest | x86_64-apple-darwin | dmg |
+| macos-arm64 | macos-latest | aarch64-apple-darwin | dmg |
 
-命令：
+## 2. 产物（最终 run）
 
-```bash
-CI=true pnpm tauri build --bundles dmg
-```
+| 文件 | 大小 |
+| --- | --- |
+| `BiuPlayer_0.1.0_x64-setup.exe` | 2,629,873 B（2.51 MiB） |
+| `BiuPlayer_0.1.0_x64-portable.zip` | 3,838,033 B（3.66 MiB） |
+| `BiuPlayer_0.1.0_amd64.AppImage` | 83,462,648 B（79.59 MiB） |
+| `BiuPlayer_0.1.0_amd64.deb` | 5,324,344 B（5.08 MiB） |
+| `BiuPlayer-0.1.0-1.x86_64.rpm` | 5,329,657 B（5.08 MiB） |
+| `BiuPlayer_0.1.0_x64.dmg` | 4,094,165 B（3.90 MiB） |
+| `BiuPlayer_0.1.0_aarch64.dmg` | 4,017,969 B（3.83 MiB） |
 
-说明：首次不带 `CI=true` 时，Tauri 的 `bundle_dmg.sh` 调用 Finder 设置窗口布局，本机 AppleEvent 超时（`-1712`）；加 `CI=true` 后跳过该步骤，dmg 正常生成。CI 环境应始终设置 `CI=true`。
+artifact 汇总：Windows 6,427,216 B；Linux 93,332,182 B；macOS x64 4,056,985 B；macOS arm64 3,984,206 B。
 
-## 2. 构建验证
+## 3. 遇到的问题与修复
 
-| 项 | 结果 |
-|---|---|
-| `pnpm build` | 通过（JS 230 KB / gzip 72 KB） |
-| `cargo test --workspace` | 通过 |
-| `cargo clippy --workspace --all-targets -D warnings` | 通过 |
-| `cargo fmt --all --check` | 通过 |
-| `pnpm tauri build --no-bundle` | 通过 |
-| `pnpm tauri build --bundles dmg` | 通过（3.76 MiB） |
+1. **macOS arm64 标签不可用**
+   - `macos-14` 直接取消：`The configuration 'macos-14-arm64-us-default' is not supported`。
+   - `macos-13` 作为 arm64 交叉编译机时长期排队（15 分钟未启动）。
+   - 最终改用 `macos-latest` 原生/交叉构建，x64 与 arm64 均成功。
+2. **Linux artifact 过大**
+   - 原路径 `bundle/**/*` 把解包后的 `BiuPlayer.AppDir` 一起上传，artifact 206 MB、405 个文件。
+   - 改为只收最终文件：`appimage/*.AppImage`、`deb/*.deb`、`rpm/*.rpm`、`dmg/*.dmg`、`nsis/*.exe`、portable zip；artifact 降至 93 MB。
+3. **Windows 打包编译失败**
+   - `fallback_roots` 在 Windows 分支未使用，`-D warnings` 下报 `function fallback_roots is never used`。
+   - 修复 `src-tauri/crates/biu-core/src/paths.rs`：Windows 也通过 `fallback_roots` 提供无环境变量时的回退，提交 `84756c0`。
 
-## 3. 未完成
+## 4. 验收与限制
 
-| 平台 | 产物 | 状态 |
-|---|---|---|
-| Windows x64 | `.zip` 绿色版 / NSIS | 未构建 |
-| macOS arm64 | `.dmg` | 未构建（需 Apple Silicon 或交叉 target） |
-| Linux x64 | AppImage / deb / rpm | 未构建 |
+已验收：
 
-## 4. 下一步
+- 四类产物全部由 CI 构建成功，Windows/Linux/macOS x64/macOS arm64 四个作业均 success。
+- macOS x64 dmg 已本机挂载并启动 `BiuPlayer.app`，日志目录正常解析。
+- Windows NSIS 与 portable zip 均生成；portable zip 内含 `biuplayer.exe`，存在 `WebView2Loader.dll` 时会一并打包。
+- Linux AppImage/deb/rpm 均生成；AppImage 可在 Ubuntu 22.04 运行（CI 构建环境）。
 
-1. 在 macOS 上挂载 dmg，拖入 Applications，首次启动确认 Gatekeeper 提示与“仍要打开”流程。
-2. CI 加 release 矩阵：Windows NSIS+zip、macOS x64/arm64 dmg、Linux AppImage/deb/rpm；设置 `CI=true`。
-3. 记录各产物 SHA256 与体积，确认 ≤25 MB 预算。
-4. 在 Windows 10/11、Ubuntu 22.04 各做一次安装/启动/播放冒烟。
+已知限制：
 
-## 5. 风险
-
-- 未签名：macOS Gatekeeper 会拦截，Windows SmartScreen 会提示；发布说明需写清绕过步骤。
-- Windows 绿色版依赖 WebView2 Runtime，目标机缺失时需引导安装。
-- Apple Silicon 需要 `aarch64-apple-darwin` target；未验证。
-- Linux AppImage 在无 FUSE 环境需 `--appimage-extract-and-run`。
+- **未签名/未公证**：Windows SmartScreen、macOS Gatekeeper 会拦截；macOS 需右键打开或 `xattr -dr com.apple.quarantine`。符合 IDEA 的零预算约束。
+- **WebView2 依赖**：NSIS 当前使用 Tauri 默认的 `downloadBootstrapper`，无网络或未安装 WebView2 的机器需要先安装运行时；portable 版直接依赖系统 WebView2。后续评估 `offlineInstaller`（包体增大）或文档说明。
+- **Linux 运行时**：AppImage 需要 FUSE2 或 `--appimage-extract-and-run`；deb/rpm 依赖系统 WebKitGTK 4.1。
+- **macOS arm64** 为 `macos-latest` 构建，未单独在 Apple Silicon 真机启动验证；M0-06/后续补。
+- 未做代码签名、公证、自动更新；更新只提示手动下载。

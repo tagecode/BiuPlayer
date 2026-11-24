@@ -4,7 +4,7 @@
 
 - 中文名：博音音乐播放器
 - 英文名：BiuPlayer
-- 当前阶段：**M0 技术验证**（M0-01/02/03/04 已通过 macOS 本机验证；macOS x64 dmg 已产出，Windows/Linux 与 arm64 未完成）
+- 当前阶段：**M0 收尾 / E1 工程化**（M0-01..06 已完成；发布矩阵四类产物全部构建成功；E1-02 路径/配置、E1-03 诊断已落地）
 
 ## 文档
 
@@ -27,8 +27,11 @@
 | 日志 | tracing 按天落盘到系统日志目录 |
 | 媒体库 | SQLite + FTS5，1 万文件扫描 2.4s |
 | 前端 | React 19 + Vite 7 + TS 5.8，M0 验证台 |
+| 打包 | Windows NSIS + portable zip、macOS x64/arm64 dmg、Linux AppImage/deb/rpm；CI 四作业全绿 |
+| 路径/配置 | 平台数据目录、便携模式、settings.json 原子写、损坏隔离 |
+| 诊断 | panic 崩溃日志、settings+最近日志诊断 zip |
 
-未验证：Windows/Linux 真机与安装包、macOS arm64、10 万曲库、真实标签/封面、独占输出、gapless。
+未验证：Windows 真机启动、macOS arm64 真机、Ubuntu 24.04/Wayland、10 万曲库、真实标签/封面、独占输出、gapless。
 
 ## 环境要求
 
@@ -88,11 +91,21 @@ fixtures/audio/m0/       7 格式音频夹具
 docs/                    产品/架构/MVP/报告
 ```
 
+## 发布产物
+
+最近一次绿色矩阵：<https://github.com/tagecode/BiuPlayer/actions/runs/45320213684>
+
+- Windows：`BiuPlayer_0.1.0_x64-setup.exe`、`BiuPlayer_0.1.0_x64-portable.zip`
+- macOS：`BiuPlayer_0.1.0_x64.dmg`、`BiuPlayer_0.1.0_aarch64.dmg`
+- Linux：`BiuPlayer_0.1.0_amd64.AppImage`、`.deb`、`.rpm`
+
+> 产物未签名/未公证；macOS 需右键打开或清除 quarantine；Windows 需要 WebView2。
+
 ## 下一步
 
-1. 在 Ubuntu 22.04 与 Windows 10/11 各做一次编译、启动、出声冒烟。
-2. 跑通 release 矩阵，产出 Windows zip/NSIS、macOS dual-arch dmg、Linux AppImage/deb/rpm。
-3. 关闭 M0 出口后进入 E1：应用外壳、路由、设置、扫描与曲库列表。
+1. 补 Windows 11 / macOS arm64 真机启动与出声冒烟。
+2. 按 Mvp.md 推进 E1-04/05/06：IPC 契约、应用外壳与路由、i18n。
+3. 进入 D1（SQLite schema 与迁移）和 A1（7 格式播放链路）。
 
 ## 许可
 
