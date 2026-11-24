@@ -122,16 +122,16 @@ jobs:
 
       - name: Generate SHA256SUMS
         run: |
-          cd artifacts
-          find . -type f -printf '%P\n' | sort | while read -r file; do
-            sha256sum "$file"
-          done > SHA256SUMS.txt
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          cd release
+          sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: checksums
-          path: artifacts/SHA256SUMS.txt
+          path: release/SHA256SUMS.txt
           retention-days: 14
 
   release:
@@ -151,7 +151,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: checksums
-          path: artifacts
+          path: checksums
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          cp checksums/SHA256SUMS.txt release/
 
       - name: Publish draft release
         uses: softprops/action-gh-release@v2
@@ -160,11 +166,4 @@ jobs:
           generate_release_notes: true
           name: BiuPlayer ${{ github.ref_name }}
           fail_on_unmatched_files: true
-          files: |
-            artifacts/*.AppImage
-            artifacts/*.deb
-            artifacts/*.rpm
-            artifacts/*.dmg
-            artifacts/*.exe
-            artifacts/*.zip
-            artifacts/SHA256SUMS.txt
+          files: release/*
