@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { listen } from "@tauri-apps/api/event";
+import {
+  commands,
+  type PlayerStateDto_Serialize,
+  type QueueSnapshotDto_Serialize,
+} from "./bindings";
 import { useI18n, type Lang, type MessageKey } from "./i18n";
 
 const nav: { to: string; labelKey: MessageKey; end?: boolean }[] = [
@@ -15,6 +21,16 @@ const nav: { to: string; labelKey: MessageKey; end?: boolean }[] = [
   { to: "/m0", labelKey: "nav.m0" },
 ];
 
+const modes = ["sequential", "list_loop", "single_loop", "shuffle"] as const;
+type PlayMode = (typeof modes)[number];
+
+const modeKey: Record<PlayMode, MessageKey> = {
+  sequential: "player.mode.sequential",
+  list_loop: "player.mode.listLoop",
+  single_loop: "player.mode.singleLoop",
+  shuffle: "player.mode.shuffle",
+};
+
 type Theme = "dark" | "light";
 
 function initialTheme(): Theme {
@@ -22,14 +38,74 @@ function initialTheme(): Theme {
   return saved === "light" ? "light" : "dark";
 }
 
+function formatTime(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return "0:00";
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function errorText(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const value = error as { code?: string; message?: string };
+    return value.code ? `${value.code}: ${value.message}` : String(value.message);
+  }
+  return String(error);
+}
+
 export function Shell() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const { lang, setLang, t } = useI18n();
+  const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
+  const [queue, setQueue] = useState<QueueSnapshotDto_Serialize | null>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("biu.theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<PlayerStateDto_Serialize>("player:state", (event) => {
+      if (!disposed) setPlayer(event.payload);
+    }).then((stop) => {
+      if (disposed) stop();
+      else unlisten = stop;
+    });
+    Promise.all([commands.playerSnapshot(), commands.playerQueue()])
+      .then(([snapshot, snapshotQueue]) => {
+        if (disposed) return;
+        setPlayer(snapshot);
+        setQueue(snapshotQueue);
+      })
+      .catch((error) => setNotice(errorText(error)));
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  async function run(action: () => Promise<unknown>) {
+    try {
+      setNotice("");
+      await action();
+    } catch (error) {
+      setNotice(errorText(error));
+    }
+  }
+
+  async function refreshQueue() {
+    setQueue(await commands.playerQueue());
+  }
+
+  const mode = (modes.includes(player?.mode as PlayMode) ? player?.mode : "sequential") as PlayMode;
+  const playing = player?.state === "playing";
+  const hasTrack = Boolean(player?.path);
+  const position = player?.position_ms ?? 0;
+  const duration = player?.duration_ms ?? 0;
 
   return (
     <div className="shell">
@@ -83,25 +159,162 @@ export function Shell() {
         <main className="content">
           <Outlet />
         </main>
+
+        {queueOpen && (
+          <section className="queue-panel" aria-label={t("player.queue")}>
+            <div className="queue-head">
+              <strong>{t("player.queue")}</strong>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => run(async () => {
+                  setPlayer(await commands.playerQueueClear());
+                  await refreshQueue();
+                })}
+                disabled={(queue?.items.length ?? 0) === 0}
+              >
+                {t("player.clear")}
+              </button>
+            </div>
+            {queue && queue.items.length > 0 ? (
+              <ol className="queue-list">
+                {queue.items.map((item, index) => (
+                  <li key={`${item.path}-${index}`} className={index === queue.index ? "current" : ""}>
+                    <button
+                      type="button"
+                      className="queue-track"
+                      onClick={() => run(async () => {
+                        setPlayer(await commands.playerJump(index));
+                        await refreshQueue();
+                      })}
+                    >
+                      <span>{index + 1}</span>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>{item.artist ?? t("player.unknownArtist")}</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      aria-label={t("player.remove")}
+                      onClick={() => run(async () => {
+                        await commands.playerQueueRemove(index);
+                        await refreshQueue();
+                      })}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="muted">{t("player.queueEmpty")}</p>
+            )}
+          </section>
+        )}
+
         <footer className="playerbar">
           <div className="player-meta">
             <div className="cover-placeholder">♪</div>
             <div>
-              <strong>{t("player.none")}</strong>
-              <p className="muted">{t("player.hint")}</p>
+              <strong>{player?.title ?? t("player.none")}</strong>
+              <p className="muted">
+                {player?.artist ?? (hasTrack ? t("player.unknownArtist") : t("player.hint"))}
+              </p>
             </div>
           </div>
+
           <div className="player-controls">
-            <button className="ghost" aria-label={t("player.prev")} disabled>⏮</button>
-            <button className="play" aria-label={t("player.play")} disabled>▶</button>
-            <button className="ghost" aria-label={t("player.next")} disabled>⏭</button>
+            <button
+              className="ghost"
+              aria-label={t("player.prev")}
+              onClick={() => run(async () => {
+                setPlayer(await commands.playerPrev());
+                await refreshQueue();
+              })}
+              disabled={!hasTrack}
+            >
+              ⏮
+            </button>
+            <button
+              className="play"
+              aria-label={playing ? t("player.pause") : t("player.play")}
+              onClick={() => run(async () => setPlayer(playing ? await commands.playerPause() : await commands.playerPlay()))}
+              disabled={!hasTrack}
+            >
+              {playing ? "⏸" : "▶"}
+            </button>
+            <button
+              className="ghost"
+              aria-label={t("player.next")}
+              onClick={() => run(async () => {
+                setPlayer(await commands.playerNext());
+                await refreshQueue();
+              })}
+              disabled={!hasTrack}
+            >
+              ⏭
+            </button>
           </div>
+
           <div className="player-progress">
-            <span className="mono">0:00</span>
-            <div className="progress"><span /></div>
-            <span className="mono">0:00</span>
+            <span className="mono">{formatTime(position)}</span>
+            <input
+              type="range"
+              aria-label="Seek"
+              min={0}
+              max={Math.max(duration, 1)}
+              value={Math.min(position, duration || 0)}
+              onChange={(event) => run(async () => {
+                setPlayer(await commands.playerSeek(Number(event.target.value)));
+              })}
+              disabled={!hasTrack}
+            />
+            <span className="mono">{formatTime(duration)}</span>
+          </div>
+
+          <div className="player-extra">
+            <button
+              type="button"
+              className="ghost mode-button"
+              aria-label={t("player.mode")}
+              title={t(modeKey[mode])}
+              onClick={() => run(async () => {
+                const next = modes[(modes.indexOf(mode) + 1) % modes.length];
+                setPlayer(await commands.playerSetMode(next));
+              })}
+            >
+              {mode === "shuffle" ? "⤨" : mode === "single_loop" ? "🔂" : mode === "list_loop" ? "🔁" : "➡"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              aria-label={player?.muted ? t("player.unmute") : t("player.mute")}
+              onClick={() => run(async () => setPlayer(await commands.playerSetMuted(!player?.muted)))}
+            >
+              {player?.muted ? "🔇" : "🔊"}
+            </button>
+            <input
+              type="range"
+              aria-label="Volume"
+              min={0}
+              max={1}
+              step={0.01}
+              value={player?.muted ? 0 : player?.volume ?? 1}
+              onChange={(event) => run(async () => setPlayer(await commands.playerSetVolume(Number(event.target.value))))}
+            />
+            <button
+              type="button"
+              className="ghost"
+              aria-pressed={queueOpen}
+              onClick={() => setQueueOpen((open) => !open)}
+            >
+              {t("player.queue")} {queue?.items.length ?? 0}
+            </button>
           </div>
         </footer>
+        {notice && <p className="player-notice">{notice}</p>}
       </div>
     </div>
   );

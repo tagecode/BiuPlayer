@@ -1,6 +1,7 @@
 pub mod commands;
 mod diagnostics;
 mod logging;
+pub mod queue;
 
 use std::path::Path;
 #[cfg(debug_assertions)]
@@ -31,11 +32,21 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::app_paths,
             commands::system::export_diagnostics,
             commands::player::player_open,
+            commands::player::player_play_queue,
             commands::player::player_play,
             commands::player::player_pause,
             commands::player::player_stop,
             commands::player::player_seek,
             commands::player::player_set_volume,
+            commands::player::player_set_muted,
+            commands::player::player_next,
+            commands::player::player_prev,
+            commands::player::player_jump,
+            commands::player::player_set_mode,
+            commands::player::player_queue,
+            commands::player::player_queue_add,
+            commands::player::player_queue_remove,
+            commands::player::player_queue_clear,
             commands::player::player_snapshot,
             commands::library::library_add_folder,
             commands::library::library_scan_start,
@@ -53,6 +64,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<AudioDevice>()
         .typ::<AppPathsInfo>()
         .typ::<PlayerStateDto>()
+        .typ::<biu_ipc::QueueItemDto>()
+        .typ::<biu_ipc::QueueSnapshotDto>()
         .typ::<LibraryScanDto>()
         .typ::<LibraryScanStatusDto>()
         .typ::<LibraryTrackDto>()
@@ -104,8 +117,12 @@ pub fn run() {
             );
             app.manage(guard);
             let database_file = paths.database_file.clone();
+            let session_file = paths.data_dir.join("player-session.json");
             app.manage(AppPathsState(paths));
             app.manage(commands::player::AudioPlayerState::default());
+            app.manage(commands::player::AudioQueueState(std::sync::Mutex::new(
+                crate::queue::AudioQueue::new(session_file),
+            )));
             let library = match biu_library::Database::open(&database_file) {
                 Ok(database) => Some(database),
                 Err(err) => {

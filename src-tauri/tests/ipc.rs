@@ -50,8 +50,13 @@ fn player_snapshot_is_idle_without_device() {
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app");
     app.manage(biuplayer_lib::commands::player::AudioPlayerState::default());
+    app.manage(biuplayer_lib::commands::player::AudioQueueState(
+        std::sync::Mutex::new(biuplayer_lib::queue::AudioQueue::new(
+            std::env::temp_dir().join("biu-ipc-idle-queue.json"),
+        )),
+    ));
 
-    let snapshot = biuplayer_lib::commands::player::player_snapshot(app.state());
+    let snapshot = biuplayer_lib::commands::player::player_snapshot(app.state(), app.state());
     assert_eq!(snapshot.state, "idle");
     assert_eq!(snapshot.position_ms, 0.0);
 }
@@ -64,13 +69,52 @@ fn player_open_rejects_missing_file() {
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app");
     app.manage(biuplayer_lib::commands::player::AudioPlayerState::default());
+    app.manage(biuplayer_lib::commands::player::AudioQueueState(
+        std::sync::Mutex::new(biuplayer_lib::queue::AudioQueue::new(
+            std::env::temp_dir().join("biu-ipc-open-queue.json"),
+        )),
+    ));
 
     let error = biuplayer_lib::commands::player::player_open(
         "/definitely/not/a/track.mp3".to_string(),
         app.state(),
+        app.state(),
     )
     .expect_err("missing file must fail");
     assert_eq!(error.code, biu_ipc::error_codes::E_INVALID_ARGUMENT);
+}
+
+#[test]
+fn queue_commands_persist_items_without_opening_audio() {
+    use std::path::PathBuf;
+    use tauri::Manager;
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+    let session = std::env::temp_dir().join(format!("biu-queue-ipc-{}.json", std::process::id()));
+    let _ = std::fs::remove_file(&session);
+    app.manage(biuplayer_lib::commands::player::AudioQueueState(
+        std::sync::Mutex::new(biuplayer_lib::queue::AudioQueue::new(session)),
+    ));
+
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0/tone.flac");
+    let item = biu_ipc::QueueItemDto {
+        path: fixture.display().to_string(),
+        title: "tone".to_string(),
+        artist: Some("biu".to_string()),
+        album: None,
+        duration_ms: Some(2000.0),
+    };
+    let snapshot = biuplayer_lib::commands::player::player_queue_add(item, app.state())
+        .expect("add queue item");
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.index, Some(0.0));
+
+    let snapshot = biuplayer_lib::commands::player::player_queue_remove(0.0, app.state())
+        .expect("remove queue item");
+    assert!(snapshot.items.is_empty());
+    assert_eq!(snapshot.index, None);
 }
 
 #[test]

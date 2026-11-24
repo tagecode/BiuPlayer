@@ -12,11 +12,21 @@ export const commands = {
 	appPaths: (options?: InvokeOptions) => __TAURI_INVOKE<AppPathsInfo>("app_paths", undefined, options),
 	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
 	playerOpen: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_open", { path }, options),
+	playerPlayQueue: (items: QueueItemDto_Deserialize[], startIndex: number | null, mode: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_play_queue", { items, startIndex, mode }, options),
 	playerPlay: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_play", undefined, options),
 	playerPause: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_pause", undefined, options),
 	playerStop: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_stop", undefined, options),
 	playerSeek: (positionMs: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_seek", { positionMs }, options),
 	playerSetVolume: (volume: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_volume", { volume }, options),
+	playerSetMuted: (muted: boolean, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_muted", { muted }, options),
+	playerNext: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_next", undefined, options),
+	playerPrev: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_prev", undefined, options),
+	playerJump: (index: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_jump", { index }, options),
+	playerSetMode: (mode: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_mode", { mode }, options),
+	playerQueue: (options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue", undefined, options),
+	playerQueueAdd: (item: QueueItemDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_add", { item }, options),
+	playerQueueRemove: (index: number | null, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_remove", { index }, options),
+	playerQueueClear: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_queue_clear", undefined, options),
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
 	libraryAddFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanDto>("library_add_folder", { path }, options),
 	libraryScanStart: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_start", { path }, options),
@@ -145,6 +155,14 @@ export type PlayerStateDto_Deserialize = {
 	channels: number,
 	volume: number | null,
 	error?: string | null,
+	title?: string | null,
+	artist?: string | null,
+	album?: string | null,
+	muted: boolean,
+	mode: string,
+	queue_index?: number | null,
+	queue_len: number | null,
+	finished: boolean,
 };
 
 /**
@@ -160,6 +178,48 @@ export type PlayerStateDto_Serialize = {
 	channels: number,
 	volume: number | null,
 	error: string | null,
+	title: string | null,
+	artist: string | null,
+	album: string | null,
+	muted: boolean,
+	mode: string,
+	queue_index: number | null,
+	queue_len: number | null,
+	finished: boolean,
+};
+
+export type QueueItemDto = QueueItemDto_Serialize | QueueItemDto_Deserialize;
+
+export type QueueItemDto_Deserialize = {
+	path: string,
+	title: string,
+	artist?: string | null,
+	album?: string | null,
+	duration_ms?: number | null,
+};
+
+export type QueueItemDto_Serialize = {
+	path: string,
+	title: string,
+	artist: string | null,
+	album: string | null,
+	duration_ms: number | null,
+};
+
+export type QueueSnapshotDto = QueueSnapshotDto_Serialize | QueueSnapshotDto_Deserialize;
+
+export type QueueSnapshotDto_Deserialize = {
+	items: QueueItemDto_Deserialize[],
+	index?: number | null,
+	mode: string,
+	muted: boolean,
+};
+
+export type QueueSnapshotDto_Serialize = {
+	items: QueueItemDto_Serialize[],
+	index: number | null,
+	mode: string,
+	muted: boolean,
 };
 
 export type TestTick = {

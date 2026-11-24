@@ -86,13 +86,15 @@ body {
 }
 
 .main {
-  display: grid;
-  grid-template-rows: 60px minmax(0, 1fr) 84px;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
 }
 
 .titlebar {
+  flex: 0 0 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -122,7 +124,9 @@ body {
 }
 
 .content {
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 24px;
 }
@@ -167,12 +171,27 @@ body {
 
 .playerbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto minmax(240px, 1.4fr);
+  grid-template-columns: minmax(160px, 1fr) auto minmax(220px, 1.2fr) auto;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   padding: 12px 24px;
   border-top: 1px solid var(--line);
   background: var(--panel);
+}
+
+.player-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-extra input[type="range"] {
+  width: 84px;
+}
+
+.player-progress input[type="range"] {
+  flex: 1;
+  min-width: 80px;
 }
 
 .player-meta {
@@ -246,6 +265,86 @@ body {
   background: var(--accent);
 }
 
+.queue-panel {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 10px 24px 14px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.queue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.queue-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 2px 6px;
+}
+
+.queue-list li.current {
+  background: var(--panel-2);
+}
+
+.queue-track {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.queue-track > span:first-child {
+  width: 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queue-track > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.queue-track strong,
+.queue-track small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-track small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.player-notice {
+  margin: 0;
+  padding: 6px 24px;
+  color: var(--danger, #f87171);
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .ghost {
   background: transparent;
   border: 1px solid var(--line);
@@ -280,7 +379,9 @@ body {
   .playerbar {
     grid-template-columns: 1fr auto;
   }
-  .player-progress {
+  .player-progress,
+  .player-extra input[type="range"],
+  .player-extra .mode-button {
     display: none;
   }
 }

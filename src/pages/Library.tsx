@@ -3,6 +3,7 @@ import {
   commands,
   type LibraryScanStatusDto_Serialize,
   type LibraryTrackDto_Serialize,
+  type QueueItemDto_Serialize,
 } from "../bindings";
 
 function errorText(error: unknown): string {
@@ -116,8 +117,18 @@ export function Library() {
   }
 
   async function play(track: LibraryTrackDto_Serialize) {
+    const list = query.trim() ? hits : tracks;
+    if (list.length === 0) return;
+    const items: QueueItemDto_Serialize[] = list.map((entry) => ({
+      path: entry.path,
+      title: entry.title,
+      artist: entry.artist ?? null,
+      album: entry.album ?? null,
+      duration_ms: entry.duration_ms ?? null,
+    }));
+    const index = Math.max(0, list.findIndex((entry) => entry.path === track.path));
     try {
-      await commands.playerOpen(track.path);
+      await commands.playerPlayQueue(items, index, "list_loop");
       setMessage(`正在播放：${track.title}`);
     } catch (error) {
       setMessage(errorText(error));

@@ -75,6 +75,8 @@ pub struct PlayerSnapshot {
     pub channels: u16,
     pub volume: f32,
     pub error: Option<String>,
+    /// True once the decoder reached EOF and the output buffer drained.
+    pub finished: bool,
 }
 
 struct Shared {
@@ -88,6 +90,7 @@ struct Shared {
     volume: AtomicU32,
     eof: AtomicBool,
     started: AtomicBool,
+    finished: AtomicBool,
     path: Mutex<Option<String>>,
     error: Mutex<Option<String>>,
 }
@@ -105,6 +108,7 @@ impl Shared {
             volume: AtomicU32::new(1.0f32.to_bits()),
             eof: AtomicBool::new(false),
             started: AtomicBool::new(false),
+            finished: AtomicBool::new(false),
             path: Mutex::new(None),
             error: Mutex::new(None),
         }
@@ -135,6 +139,7 @@ impl Shared {
             channels: self.src_channels.load(Ordering::Relaxed),
             volume: f32::from_bits(self.volume.load(Ordering::Relaxed)),
             error: self.error.lock().unwrap().clone(),
+            finished: self.finished.load(Ordering::Relaxed),
         }
     }
 }
@@ -199,6 +204,11 @@ impl Player {
         let _ = self.tx.send(Command::SetVolume(volume.clamp(0.0, 1.0)));
     }
 
+    /// Clears the EOF marker after the queue decided not to advance.
+    pub fn acknowledge_finished(&self) {
+        self.shared.finished.store(false, Ordering::Relaxed);
+    }
+
     pub fn snapshot(&self) -> PlayerSnapshot {
         self.shared.snapshot()
     }
@@ -240,6 +250,7 @@ fn worker(shared: Arc<Shared>, rx: mpsc::Receiver<Command>, ready: Sender<Result
                         shared.position_frames.store(0, Ordering::Relaxed);
                         shared.eof.store(false, Ordering::Relaxed);
                         shared.started.store(false, Ordering::Relaxed);
+                        shared.finished.store(false, Ordering::Relaxed);
                         shared
                             .duration_ms
                             .store(track.duration_ms, Ordering::Relaxed);
@@ -262,6 +273,7 @@ fn worker(shared: Arc<Shared>, rx: mpsc::Receiver<Command>, ready: Sender<Result
                         if shared.state() == PlaybackState::Stopped {
                             shared.position_frames.store(0, Ordering::Relaxed);
                         }
+                        shared.finished.store(false, Ordering::Relaxed);
                         shared.set_state(PlaybackState::Playing);
                     }
                 }
@@ -276,6 +288,7 @@ fn worker(shared: Arc<Shared>, rx: mpsc::Receiver<Command>, ready: Sender<Result
                     shared.position_frames.store(0, Ordering::Relaxed);
                     shared.started.store(false, Ordering::Relaxed);
                     shared.eof.store(false, Ordering::Relaxed);
+                    shared.finished.store(false, Ordering::Relaxed);
                     shared.set_state(PlaybackState::Stopped);
                 }
                 Command::Seek(position_ms) => {
@@ -287,6 +300,7 @@ fn worker(shared: Arc<Shared>, rx: mpsc::Receiver<Command>, ready: Sender<Result
                             let frames = position_ms.saturating_mul(out_rate as u64) / 1000;
                             shared.position_frames.store(frames, Ordering::Relaxed);
                             shared.eof.store(false, Ordering::Relaxed);
+                            shared.finished.store(false, Ordering::Relaxed);
                             let state = shared.state();
                             if state == PlaybackState::Playing {
                                 shared.set_state(PlaybackState::Playing);
@@ -433,6 +447,7 @@ where
             .fetch_add(frames as u64, Ordering::Relaxed);
         shared.started.store(true, Ordering::Relaxed);
         if empty && shared.eof.load(Ordering::Relaxed) {
+            shared.finished.store(true, Ordering::Relaxed);
             shared.set_state(PlaybackState::Stopped);
         }
     }

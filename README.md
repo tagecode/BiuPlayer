@@ -23,15 +23,16 @@
 |---|---|
 | 解码 | 7/7：MP3、FLAC、WAV、AAC/M4A、ALAC、OGG、AIFF（symphonia） |
 | 输出 | macOS 44.1k/48k 正弦播放，设备枚举 |
-| IPC | 4 个命令、`test:tick` 事件、1000 事件无丢失 |
-| 日志 | tracing 按天落盘到系统日志目录 |
-| 媒体库 | SQLite + FTS5，1 万文件扫描 2.4s |
-| 前端 | React 19 + Vite 7 + TS 5.8，M0 验证台 |
+| IPC | 命令错误封套、`player:state` 4Hz 事件、1000 事件无丢失 |
+| 日志 | tracing 按天落盘到系统日志目录，panic 崩溃文件 |
+| 媒体库 | SQLite + FTS5 v2、增量扫描/暂停/取消/续扫、拼音搜索 |
+| 播放 | 7 格式流式解码、cpal 共享输出、队列/上一首/下一首/4 模式/全局播放栏 |
+| 前端 | React 19 + 路由 + 三语 i18n + 状态页，曲库列表与搜索 |
 | 打包 | Windows NSIS + portable zip、macOS x64/arm64 dmg、Linux AppImage/deb/rpm；CI 四作业全绿 |
 | 路径/配置 | 平台数据目录、便携模式、settings.json 原子写、损坏隔离 |
 | 诊断 | panic 崩溃日志、settings+最近日志诊断 zip |
 
-未验证：Windows 真机启动、macOS arm64 真机、Ubuntu 24.04/Wayland、10 万曲库、真实标签/封面、独占输出、gapless。
+未验证：Windows 真机启动、macOS arm64 真机、Ubuntu 24.04/Wayland、10 万曲库、真实封面、独占输出、gapless、队列拖拽排序。
 
 ## 环境要求
 
@@ -104,8 +105,8 @@ docs/                    产品/架构/MVP/报告
 ## 下一步
 
 1. 补 Windows 11 / macOS arm64 真机启动与出声冒烟。
-2. 按 Mvp.md 推进 E1-04/05/06：IPC 契约、应用外壳与路由、i18n。
-3. 进入 D1（SQLite schema 与迁移）和 A1（7 格式播放链路）。
+2. 按 Mvp.md 做 P1 播放列表与正在播放页、L1 专辑/艺术家视图与封面。
+3. 再做 LRC 歌词、设置中心、托盘/单实例与发布收尾。
 
 ## 许可
 

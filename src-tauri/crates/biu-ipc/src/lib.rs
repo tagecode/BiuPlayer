@@ -101,6 +101,14 @@ pub struct PlayerStateDto {
     pub channels: u16,
     pub volume: f32,
     pub error: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub muted: bool,
+    pub mode: String,
+    pub queue_index: Option<f64>,
+    pub queue_len: f64,
+    pub finished: bool,
 }
 
 impl PlayerStateDto {
@@ -114,8 +122,33 @@ impl PlayerStateDto {
             channels: 0,
             volume: 1.0,
             error: None,
+            title: None,
+            artist: None,
+            album: None,
+            muted: false,
+            mode: "sequential".to_string(),
+            queue_index: None,
+            queue_len: 0.0,
+            finished: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct QueueItemDto {
+    pub path: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration_ms: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct QueueSnapshotDto {
+    pub items: Vec<QueueItemDto>,
+    pub index: Option<f64>,
+    pub mode: String,
+    pub muted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
