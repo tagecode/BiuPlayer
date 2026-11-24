@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "BiuPlayer — 博音音乐播放器"
 authors = ["BiuPlayer Contributors"]
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [lib]
 # The `_lib` suffix keeps the lib name distinct from the bin name on Windows.
