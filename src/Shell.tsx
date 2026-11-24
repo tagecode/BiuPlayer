@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NavLink, Outlet } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -85,6 +86,9 @@ export function Shell() {
         const width = Math.min(400, Math.max(160, settings.sidebarWidth || 220));
         sidebarWidthRef.current = width;
         setSidebarWidth(width);
+        const opacity = Math.min(1, Math.max(0.7, settings.opacity ?? 1));
+        document.documentElement.style.setProperty("--ui-opacity", String(opacity));
+        void getCurrentWindow().setAlwaysOnTop(Boolean(settings.alwaysOnTop)).catch(() => {});
       })
       .catch(() => {});
   }, []);

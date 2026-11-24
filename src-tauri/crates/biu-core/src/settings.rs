@@ -169,6 +169,14 @@ pub struct UiSettings {
     pub sidebar_width: u32,
     pub list_density: String,
     pub reduce_motion: bool,
+    #[serde(default)]
+    pub always_on_top: bool,
+    #[serde(default = "default_ui_opacity")]
+    pub opacity: f64,
+}
+
+fn default_ui_opacity() -> f64 {
+    1.0
 }
 
 impl Default for UiSettings {
@@ -177,6 +185,8 @@ impl Default for UiSettings {
             sidebar_width: 220,
             list_density: "comfortable".into(),
             reduce_motion: false,
+            always_on_top: false,
+            opacity: 1.0,
         }
     }
 }

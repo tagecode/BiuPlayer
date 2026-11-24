@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   commands,
   type AppInfo,
@@ -28,6 +29,8 @@ export function Settings() {
       .then((value) => {
         setSettings(value);
         applyTheme(value.theme);
+        document.documentElement.style.setProperty("--ui-opacity", String(value.opacity ?? 1));
+        void getCurrentWindow().setAlwaysOnTop(Boolean(value.alwaysOnTop)).catch(() => {});
       })
       .catch((error) => setMessage(String(error)));
   }, []);
@@ -58,6 +61,12 @@ export function Settings() {
       const next = await commands.settingsUpdate(patch);
       setSettings(next);
       if (patch.theme) applyTheme(String(patch.theme));
+      if (patch.alwaysOnTop !== undefined) {
+        await getCurrentWindow().setAlwaysOnTop(Boolean(patch.alwaysOnTop)).catch(() => {});
+      }
+      if (patch.opacity !== undefined) {
+        document.documentElement.style.setProperty("--ui-opacity", String(patch.opacity));
+      }
     } catch (error) {
       setMessage(String(error));
     }
@@ -233,6 +242,25 @@ export function Settings() {
               type="checkbox"
               checked={settings.reduceMotion}
               onChange={(event) => update({ reduceMotion: event.target.checked })}
+            />
+          </label>
+          <label className="setting-row">
+            <span>窗口置顶</span>
+            <input
+              type="checkbox"
+              checked={settings.alwaysOnTop}
+              onChange={(event) => update({ alwaysOnTop: event.target.checked })}
+            />
+          </label>
+          <label className="setting-row">
+            <span>界面不透明度</span>
+            <input
+              type="range"
+              min="0.7"
+              max="1"
+              step="0.05"
+              value={settings.opacity ?? 1}
+              onChange={(event) => update({ opacity: Number(event.target.value) })}
             />
           </label>
         </div>

@@ -330,6 +330,8 @@ export type SettingsDto = {
 	audioDevice: string,
 	bitPerfect: boolean,
 	sidebarWidth: number | null,
+	alwaysOnTop: boolean,
+	opacity: number | null,
 };
 
 export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
@@ -350,6 +352,8 @@ export type SettingsPatch_Deserialize = {
 	audioDevice?: string | null,
 	bitPerfect?: boolean | null,
 	sidebarWidth?: number | null,
+	alwaysOnTop?: boolean | null,
+	opacity?: number | null,
 };
 
 export type SettingsPatch_Serialize = {
@@ -368,6 +372,8 @@ export type SettingsPatch_Serialize = {
 	audioDevice: string | null,
 	bitPerfect: boolean | null,
 	sidebarWidth: number | null,
+	alwaysOnTop: boolean | null,
+	opacity: number | null,
 };
 
 export type TestTick = {
