@@ -49,7 +49,7 @@ export function Settings() {
       const next = await commands.settingsUpdate({ audioDevice: device });
       setSettings(next);
       await commands.playerSetDevice(device === "default" ? null : device);
-      setMessage("输出设备已切换");
+      setMessage(t("settings.deviceChanged"));
     } catch (error) {
       setMessage(String(error));
     }
@@ -76,7 +76,7 @@ export function Settings() {
     return (
       <section className="page">
         <h1>{t("nav.settings")}</h1>
-        <p className="muted">{message || "加载设置…"}</p>
+        <p className="muted">{message || t("settings.loading")}</p>
       </section>
     );
   }
@@ -87,16 +87,16 @@ export function Settings() {
         <div>
           <p className="page-kicker">P-13</p>
           <h1>{t("nav.settings")}</h1>
-          <p className="muted">设置写入本地 settings.json，不联网、不上传。</p>
+          <p className="muted">{t("settings.savedNote")}</p>
         </div>
       </header>
       {message && <p className="notice">{message}</p>}
 
       <div className="settings-grid">
         <div className="settings-card">
-          <h3>常规</h3>
+          <h3>{t("settings.section.general")}</h3>
           <label className="setting-row">
-            <span>语言</span>
+            <span>{t("settings.language")}</span>
             <select
               value={lang}
               onChange={(event) => {
@@ -111,15 +111,15 @@ export function Settings() {
             </select>
           </label>
           <label className="setting-row">
-            <span>主题</span>
+            <span>{t("settings.theme")}</span>
             <select value={settings.theme} onChange={(event) => update({ theme: event.target.value })}>
-              <option value="system">跟随系统</option>
-              <option value="dark">深色</option>
-              <option value="light">浅色</option>
+              <option value="system">{t("settings.theme.system")}</option>
+              <option value="dark">{t("settings.theme.dark")}</option>
+              <option value="light">{t("settings.theme.light")}</option>
             </select>
           </label>
           <label className="setting-row">
-            <span>启动时最小化到托盘</span>
+            <span>{t("settings.startMinimized")}</span>
             <input
               type="checkbox"
               checked={settings.startMinimized}
@@ -129,32 +129,32 @@ export function Settings() {
         </div>
 
         <div className="settings-card">
-          <h3>音频</h3>
+          <h3>{t("settings.section.audio")}</h3>
           <label className="setting-row">
-            <span>输出设备</span>
+            <span>{t("settings.outputDevice")}</span>
             <select
               value={settings.audioDevice || "default"}
               onChange={(event) => selectDevice(event.target.value)}
             >
-              <option value="default">系统默认</option>
+              <option value="default">{t("settings.defaultDevice")}</option>
               {devices.map((device) => (
                 <option key={device.name} value={device.name}>
                   {device.name}
-                  {device.is_default ? "（默认）" : ""}
+                  {device.is_default ? t("settings.defaultTag") : ""}
                 </option>
               ))}
             </select>
           </label>
           <p className="muted">
-            切换后立即生效；设备被拔出时播放器会自动回退到系统默认设备。
+            {t("settings.deviceHint")}
           </p>
-          <p className="muted">位完美/独占输出属于 P1，当前使用系统共享模式。</p>
+          <p className="muted">{t("settings.bitPerfectHint")}</p>
         </div>
 
         <div className="settings-card">
-          <h3>播放</h3>
+          <h3>{t("settings.section.playback")}</h3>
           <label className="setting-row">
-            <span>启动时恢复上次播放</span>
+            <span>{t("settings.resumeOnStart")}</span>
             <input
               type="checkbox"
               checked={settings.resumeOnStart}
@@ -162,7 +162,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>无缝播放</span>
+            <span>{t("settings.gapless")}</span>
             <input
               type="checkbox"
               checked={settings.gapless}
@@ -170,7 +170,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>淡入淡出（毫秒）</span>
+            <span>{t("settings.crossfade")}</span>
             <input
               type="number"
               min={0}
@@ -181,20 +181,20 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>默认播放模式</span>
+            <span>{t("settings.defaultMode")}</span>
             <select value={settings.mode} onChange={(event) => update({ mode: event.target.value })}>
-              <option value="sequential">顺序</option>
-              <option value="list_loop">列表循环</option>
-              <option value="single_loop">单曲循环</option>
-              <option value="shuffle">随机</option>
+              <option value="sequential">{t("settings.mode.sequential")}</option>
+              <option value="list_loop">{t("settings.mode.listLoop")}</option>
+              <option value="single_loop">{t("settings.mode.singleLoop")}</option>
+              <option value="shuffle">{t("settings.mode.shuffle")}</option>
             </select>
           </label>
         </div>
 
         <div className="settings-card">
-          <h3>歌词</h3>
+          <h3>{t("settings.section.lyrics")}</h3>
           <label className="setting-row">
-            <span>全局偏移（毫秒）</span>
+            <span>{t("settings.lyricsOffset")}</span>
             <input
               type="number"
               min={-10000}
@@ -205,7 +205,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>桌面歌词字号</span>
+            <span>{t("settings.desktopLyricsSize")}</span>
             <input
               type="number"
               min={16}
@@ -215,7 +215,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>桌面歌词颜色</span>
+            <span>{t("settings.desktopLyricsColor")}</span>
             <input
               type="color"
               value={settings.desktopLyricsColor ?? "#f5f7fa"}
@@ -225,19 +225,19 @@ export function Settings() {
         </div>
 
         <div className="settings-card">
-          <h3>界面</h3>
+          <h3>{t("settings.section.interface")}</h3>
           <label className="setting-row">
-            <span>列表密度</span>
+            <span>{t("settings.density")}</span>
             <select
               value={settings.listDensity}
               onChange={(event) => update({ listDensity: event.target.value })}
             >
-              <option value="comfortable">舒适</option>
-              <option value="compact">紧凑</option>
+              <option value="comfortable">{t("settings.density.comfortable")}</option>
+              <option value="compact">{t("settings.density.compact")}</option>
             </select>
           </label>
           <label className="setting-row">
-            <span>减少动效</span>
+            <span>{t("settings.reduceMotion")}</span>
             <input
               type="checkbox"
               checked={settings.reduceMotion}
@@ -245,7 +245,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>窗口置顶</span>
+            <span>{t("settings.alwaysOnTop")}</span>
             <input
               type="checkbox"
               checked={settings.alwaysOnTop}
@@ -253,7 +253,7 @@ export function Settings() {
             />
           </label>
           <label className="setting-row">
-            <span>界面不透明度</span>
+            <span>{t("settings.opacity")}</span>
             <input
               type="range"
               min="0.7"
@@ -266,14 +266,14 @@ export function Settings() {
         </div>
 
         <div className="settings-card">
-          <h3>关于</h3>
+          <h3>{t("settings.section.about")}</h3>
           <p>
-            博音 BiuPlayer {appInfo?.version ?? ""}
+            {t("app.name")} BiuPlayer {appInfo?.version ?? ""}
           </p>
           <p className="muted">
             {appInfo ? `${appInfo.os} / ${appInfo.arch} · Tauri ${appInfo.tauri_version}` : ""}
           </p>
-          <p className="muted">MIT License · 不联网、不采集遥测、不要求账号。</p>
+          <p className="muted">{t("settings.licenseLine")}</p>
           <div className="setting-row">
             <button
               type="button"
@@ -284,7 +284,7 @@ export function Settings() {
                 )
               }
             >
-              检查更新
+              {t("settings.checkUpdates")}
             </button>
             <button
               type="button"
@@ -295,17 +295,17 @@ export function Settings() {
                 )
               }
             >
-              开源许可
+              {t("settings.openLicense")}
             </button>
           </div>
         </div>
 
         <div className="settings-card">
-          <h3>数据</h3>
+          <h3>{t("settings.section.data")}</h3>
           <p className="muted">
-            设置保存到 settings.json；诊断包只包含设置、最近日志和系统信息，不含音乐与曲库数据库。
+            {t("settings.dataNote")}
           </p>
-          <p className="muted mono">schema v{settings.schemaVersion}</p>
+          <p className="muted mono">{t("settings.schema")}{settings.schemaVersion}</p>
         </div>
       </div>
     </section>
