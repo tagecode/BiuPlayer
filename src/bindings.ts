@@ -19,6 +19,7 @@ export const commands = {
 	playerSeek: (positionMs: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_seek", { positionMs }, options),
 	playerSetVolume: (volume: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_volume", { volume }, options),
 	playerSetMuted: (muted: boolean, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_muted", { muted }, options),
+	playerSetDevice: (device: string | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_device", { device }, options),
 	playerNext: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_next", undefined, options),
 	playerPrev: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_prev", undefined, options),
 	playerJump: (index: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_jump", { index }, options),
@@ -326,6 +327,8 @@ export type SettingsDto = {
 	lyricsOffsetMs: number | null,
 	desktopLyricsFontSize: number | null,
 	desktopLyricsColor: string,
+	audioDevice: string,
+	bitPerfect: boolean,
 };
 
 export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
@@ -343,6 +346,8 @@ export type SettingsPatch_Deserialize = {
 	lyricsOffsetMs?: number | null,
 	desktopLyricsFontSize?: number | null,
 	desktopLyricsColor?: string | null,
+	audioDevice?: string | null,
+	bitPerfect?: boolean | null,
 };
 
 export type SettingsPatch_Serialize = {
@@ -358,6 +363,8 @@ export type SettingsPatch_Serialize = {
 	lyricsOffsetMs: number | null,
 	desktopLyricsFontSize: number | null,
 	desktopLyricsColor: string | null,
+	audioDevice: string | null,
+	bitPerfect: boolean | null,
 };
 
 export type TestTick = {

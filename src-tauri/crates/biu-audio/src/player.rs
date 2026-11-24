@@ -168,6 +168,13 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Result<Self, AudioError> {
+        Self::with_device(None)
+    }
+
+    /// Create a player bound to a named output device. `None` uses the system
+    /// default. The name is matched against cpal's device name (case-insensitive).
+    pub fn with_device(device_name: Option<&str>) -> Result<Self, AudioError> {
+        let device_name = device_name.map(str::to_string);
         let shared = Arc::new(Shared::new());
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::channel();
@@ -175,7 +182,7 @@ impl Player {
         let worker_shared = shared.clone();
         thread::Builder::new()
             .name("biu-audio-player".into())
-            .spawn(move || worker(worker_shared, rx, ready_tx))
+            .spawn(move || worker(worker_shared, rx, ready_tx, device_name))
             .map_err(|e| AudioError::Output(e.to_string()))?;
 
         match ready_rx.recv_timeout(Duration::from_secs(5)) {
@@ -225,8 +232,13 @@ impl Drop for Player {
     }
 }
 
-fn worker(shared: Arc<Shared>, rx: mpsc::Receiver<Command>, ready: Sender<Result<(), String>>) {
-    let output = match Output::new(shared.clone()) {
+fn worker(
+    shared: Arc<Shared>,
+    rx: mpsc::Receiver<Command>,
+    ready: Sender<Result<(), String>>,
+    device_name: Option<String>,
+) {
+    let output = match Output::new(shared.clone(), device_name.as_deref()) {
         Ok(output) => {
             let _ = ready.send(Ok(()));
             output
@@ -354,11 +366,22 @@ struct Output {
 }
 
 impl Output {
-    fn new(shared: Arc<Shared>) -> Result<Self, AudioError> {
+    fn new(shared: Arc<Shared>, device_name: Option<&str>) -> Result<Self, AudioError> {
         let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| AudioError::Output("no default output device".into()))?;
+        let device = match device_name {
+            Some(name) => host
+                .output_devices()
+                .map_err(|e| AudioError::Output(e.to_string()))?
+                .find(|device| {
+                    device
+                        .name()
+                        .map(|candidate| candidate.eq_ignore_ascii_case(name))
+                        .unwrap_or(false)
+                })
+                .or_else(|| host.default_output_device()),
+            None => host.default_output_device(),
+        }
+        .ok_or_else(|| AudioError::Output("no output device".into()))?;
         let supported = device
             .default_output_config()
             .map_err(|e| AudioError::Output(e.to_string()))?;

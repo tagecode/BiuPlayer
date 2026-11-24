@@ -13,18 +13,43 @@ pub const PLAYER_STATE: &str = "player:state";
 
 static NEXT_SEQ: AtomicU64 = AtomicU64::new(1);
 
-/// Lazily created playback engine. Creating it opens the default output device,
-/// so the app can still start on machines without an audio device.
+/// Lazily created playback engine. Creating it opens the configured output
+/// device, so the app can still start on machines without an audio device.
 #[derive(Default)]
-pub struct AudioPlayerState(pub Mutex<Option<Player>>);
+pub struct AudioPlayerState {
+    pub player: Mutex<Option<Player>>,
+    pub device: Mutex<Option<String>>,
+}
 
 pub struct AudioQueueState(pub Mutex<AudioQueue>);
 
 fn lock(state: &AudioPlayerState) -> std::sync::MutexGuard<'_, Option<Player>> {
     state
-        .0
+        .player
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn configured_device(state: &AudioPlayerState) -> Option<String> {
+    state
+        .device
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+}
+
+fn ensure_player<'a>(
+    state: &AudioPlayerState,
+    guard: &'a mut Option<Player>,
+) -> Result<&'a Player, CommandError> {
+    if guard.is_none() {
+        let device = configured_device(state);
+        *guard = Some(
+            Player::with_device(device.as_deref())
+                .map_err(|err| CommandError::audio_device(err.to_string()))?,
+        );
+    }
+    Ok(guard.as_ref().expect("player just created"))
 }
 
 fn queue_lock(state: &AudioQueueState) -> std::sync::MutexGuard<'_, AudioQueue> {
@@ -160,11 +185,7 @@ fn play_index(
 
     {
         let mut guard = lock(player_state);
-        if guard.is_none() {
-            *guard =
-                Some(Player::new().map_err(|err| CommandError::audio_device(err.to_string()))?);
-        }
-        let player = guard.as_ref().expect("player just created");
+        let player = ensure_player(player_state, &mut guard)?;
         player.load(&path);
         if muted {
             player.set_volume(0.0);
@@ -194,11 +215,7 @@ pub fn player_open(
 
     {
         let mut guard = lock(&player);
-        if guard.is_none() {
-            *guard =
-                Some(Player::new().map_err(|err| CommandError::audio_device(err.to_string()))?);
-        }
-        let player = guard.as_ref().expect("player just created");
+        let player = ensure_player(&player, &mut guard)?;
         player.load(Path::new(&path));
         player.play();
     }
@@ -424,7 +441,8 @@ fn recover_output(
     };
 
     *lock(player_state) = None;
-    let player = Player::new().map_err(|err| err.to_string())?;
+    let device = configured_device(player_state);
+    let player = Player::with_device(device.as_deref()).map_err(|err| err.to_string())?;
     player.load(&path);
     if muted {
         player.set_volume(0.0);
@@ -435,6 +453,47 @@ fn recover_output(
     }
     *lock(player_state) = Some(player);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn player_set_device(
+    device: Option<String>,
+    state: State<'_, AudioPlayerState>,
+    queue: State<'_, AudioQueueState>,
+) -> Result<PlayerStateDto, CommandError> {
+    let resume = {
+        let guard = lock(&state);
+        guard.as_ref().and_then(|player| {
+            let snapshot = player.snapshot();
+            snapshot.path.map(|path| {
+                (
+                    path,
+                    snapshot.position_ms,
+                    snapshot.state == PlaybackState::Playing,
+                )
+            })
+        })
+    };
+    *lock(&state) = None;
+    *state
+        .device
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = device.clone();
+
+    if let Some((path, position, was_playing)) = resume {
+        let player = Player::with_device(device.as_deref())
+            .map_err(|err| CommandError::audio_device(err.to_string()))?;
+        player.load(&path);
+        if was_playing {
+            player.play();
+        }
+        if position > 0 {
+            player.seek_ms(position);
+        }
+        *lock(&state) = Some(player);
+    }
+    Ok(snapshot(&state, &queue))
 }
 
 /// Emits `player:state` at ~4 Hz. Handles EOF auto-advance, bad-file skipping

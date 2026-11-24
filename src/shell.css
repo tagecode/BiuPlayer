@@ -729,3 +729,13 @@ body {
   pointer-events: none;
   z-index: 50;
 }
+
+.setting-row select {
+  min-width: 220px;
+  max-width: 60%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}

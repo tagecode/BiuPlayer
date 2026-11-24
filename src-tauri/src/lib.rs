@@ -40,6 +40,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_seek,
             commands::player::player_set_volume,
             commands::player::player_set_muted,
+            commands::player::player_set_device,
             commands::player::player_next,
             commands::player::player_prev,
             commands::player::player_jump,

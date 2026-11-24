@@ -36,6 +36,8 @@ pub struct SettingsDto {
     pub lyrics_offset_ms: f64,
     pub desktop_lyrics_font_size: f64,
     pub desktop_lyrics_color: String,
+    pub audio_device: String,
+    pub bit_perfect: bool,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -54,6 +56,8 @@ impl From<&Settings> for SettingsDto {
             lyrics_offset_ms: settings.lyrics.offset_ms as f64,
             desktop_lyrics_font_size: settings.lyrics.font_size as f64,
             desktop_lyrics_color: settings.lyrics.desktop_color.clone(),
+            audio_device: settings.audio.device_id.clone(),
+            bit_perfect: settings.audio.bit_perfect,
         }
     }
 }
@@ -73,6 +77,8 @@ pub struct SettingsPatch {
     pub lyrics_offset_ms: Option<f64>,
     pub desktop_lyrics_font_size: Option<f64>,
     pub desktop_lyrics_color: Option<String>,
+    pub audio_device: Option<String>,
+    pub bit_perfect: Option<bool>,
 }
 
 #[tauri::command]
@@ -149,6 +155,12 @@ pub fn settings_update(
             ));
         }
         settings.lyrics.font_size = value.round() as u32;
+    }
+    if let Some(value) = patch.audio_device {
+        settings.audio.device_id = value;
+    }
+    if let Some(value) = patch.bit_perfect {
+        settings.audio.bit_perfect = value;
     }
     if let Some(value) = patch.desktop_lyrics_color {
         let valid = value.len() == 7

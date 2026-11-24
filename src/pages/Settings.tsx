@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   commands,
   type AppInfo,
+  type AudioDevice,
   type SettingsDto,
   type SettingsPatch_Deserialize,
 } from "../bindings";
@@ -14,9 +15,11 @@ export function Settings() {
   const [settings, setSettings] = useState<SettingsDto | null>(null);
   const [message, setMessage] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [devices, setDevices] = useState<AudioDevice[]>([]);
 
   useEffect(() => {
     commands.appInfo().then(setAppInfo).catch(() => {});
+    commands.audioDevices().then(setDevices).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -36,6 +39,18 @@ export function Settings() {
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
   }, [settings?.theme]);
+
+  async function selectDevice(device: string) {
+    try {
+      setMessage("");
+      const next = await commands.settingsUpdate({ audioDevice: device });
+      setSettings(next);
+      await commands.playerSetDevice(device === "default" ? null : device);
+      setMessage("输出设备已切换");
+    } catch (error) {
+      setMessage(String(error));
+    }
+  }
 
   async function update(patch: SettingsPatch_Deserialize) {
     try {
@@ -102,6 +117,29 @@ export function Settings() {
               onChange={(event) => update({ startMinimized: event.target.checked })}
             />
           </label>
+        </div>
+
+        <div className="settings-card">
+          <h3>音频</h3>
+          <label className="setting-row">
+            <span>输出设备</span>
+            <select
+              value={settings.audioDevice || "default"}
+              onChange={(event) => selectDevice(event.target.value)}
+            >
+              <option value="default">系统默认</option>
+              {devices.map((device) => (
+                <option key={device.name} value={device.name}>
+                  {device.name}
+                  {device.is_default ? "（默认）" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">
+            切换后立即生效；设备被拔出时播放器会自动回退到系统默认设备。
+          </p>
+          <p className="muted">位完美/独占输出属于 P1，当前使用系统共享模式。</p>
         </div>
 
         <div className="settings-card">
