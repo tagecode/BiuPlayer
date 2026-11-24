@@ -57,6 +57,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_tracks,
             commands::library::library_track_count,
             commands::library::library_search,
+            commands::library::library_albums,
+            commands::library::library_album_tracks,
+            commands::library::library_artists,
+            commands::library::library_artist_tracks,
             commands::library::playlist_list,
             commands::library::playlist_create,
             commands::library::playlist_rename,
@@ -79,6 +83,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<LibraryTrackDto>()
         .typ::<biu_ipc::PlaylistDto>()
         .typ::<biu_ipc::PlaylistItemDto>()
+        .typ::<biu_ipc::AlbumDto>()
+        .typ::<biu_ipc::ArtistDto>()
 }
 
 #[derive(Clone)]

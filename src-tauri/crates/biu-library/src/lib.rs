@@ -248,6 +248,7 @@ fn album_id(
     cache: &mut HashMap<(String, Option<i64>), i64>,
     title: &str,
     artist_id: Option<i64>,
+    year: Option<i32>,
 ) -> Result<i64, LibraryError> {
     let key = (title.to_string(), artist_id);
     if let Some(id) = cache.get(&key) {
@@ -264,12 +265,18 @@ fn album_id(
         Some(id) => id,
         None => {
             tx.execute(
-                "INSERT INTO albums(title, artist_id) VALUES (?1, ?2)",
-                params![title, artist_id],
+                "INSERT INTO albums(title, artist_id, year) VALUES (?1, ?2, ?3)",
+                params![title, artist_id, year],
             )?;
             tx.last_insert_rowid()
         }
     };
+    if year.is_some() {
+        tx.execute(
+            "UPDATE albums SET year = COALESCE(year, ?2) WHERE id = ?1",
+            params![id, year],
+        )?;
+    }
     cache.insert(key, id);
     Ok(id)
 }
@@ -304,6 +311,22 @@ pub struct PlaylistSummary {
 pub struct PlaylistItem {
     pub position: i64,
     pub track: TrackListItem,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlbumSummary {
+    pub id: i64,
+    pub title: String,
+    pub artist: Option<String>,
+    pub year: Option<i64>,
+    pub track_count: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtistSummary {
+    pub id: i64,
+    pub name: String,
+    pub track_count: i64,
 }
 
 pub struct Database {
@@ -784,7 +807,13 @@ impl Database {
                 None => None,
             };
             let album_id = match album_name {
-                Some(title) => Some(album_id(&tx, &mut album_cache, title, artist_id)?),
+                Some(title) => Some(album_id(
+                    &tx,
+                    &mut album_cache,
+                    title,
+                    artist_id,
+                    tags.as_ref().and_then(|tags| tags.year),
+                )?),
                 None => None,
             };
 
@@ -1121,6 +1150,107 @@ impl Database {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    pub fn list_albums(&self) -> Result<Vec<AlbumSummary>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT al.id, al.title, ar.name, al.year, COUNT(t.id)
+             FROM albums al
+             LEFT JOIN artists ar ON ar.id = al.artist_id
+             LEFT JOIN tracks t ON t.album_id = al.id AND t.missing = 0
+             GROUP BY al.id
+             ORDER BY al.title COLLATE NOCASE, al.id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(AlbumSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                year: row.get(3)?,
+                track_count: row.get(4)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn album_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE t.album_id = ?1 AND t.missing = 0
+             ORDER BY t.track_no, t.title COLLATE NOCASE, t.id",
+        )?;
+        let rows = stmt.query_map(params![id], |row| {
+            Ok(TrackListItem {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_artists(&self) -> Result<Vec<ArtistSummary>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ar.id, ar.name, COUNT(t.id)
+             FROM artists ar
+             LEFT JOIN tracks t ON t.artist_id = ar.id AND t.missing = 0
+             GROUP BY ar.id
+             ORDER BY ar.name COLLATE NOCASE, ar.id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ArtistSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                track_count: row.get(2)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn artist_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE t.artist_id = ?1 AND t.missing = 0
+             ORDER BY al.title COLLATE NOCASE, t.track_no, t.title COLLATE NOCASE, t.id",
+        )?;
+        let rows = stmt.query_map(params![id], |row| {
+            Ok(TrackListItem {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 }
 

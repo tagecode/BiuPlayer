@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use biu_ipc::{
-    CommandError, LibraryScanDto, LibraryScanStatusDto, LibraryTrackDto, PlaylistDto,
-    PlaylistItemDto,
+    AlbumDto, ArtistDto, CommandError, LibraryScanDto, LibraryScanStatusDto, LibraryTrackDto,
+    PlaylistDto, PlaylistItemDto,
 };
 use biu_library::{Database, ScanControl, ScanOutcome, ScanProgress, ScanReport, TrackListItem};
 use tauri::State;
@@ -441,4 +441,78 @@ pub fn playlist_move_item(
     database
         .move_playlist_item(id as i64, from as i64, to as i64)
         .map_err(|err| CommandError::internal(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_albums(state: State<'_, LibraryState>) -> Result<Vec<AlbumDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .list_albums()
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows
+        .into_iter()
+        .map(|row| AlbumDto {
+            id: row.id as f64,
+            title: row.title,
+            artist: row.artist,
+            year: row.year.map(|value| value as f64),
+            track_count: row.track_count as f64,
+        })
+        .collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_album_tracks(
+    id: f64,
+    state: State<'_, LibraryState>,
+) -> Result<Vec<LibraryTrackDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .album_tracks(id as i64)
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows.into_iter().map(track_dto).collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_artists(state: State<'_, LibraryState>) -> Result<Vec<ArtistDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .list_artists()
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows
+        .into_iter()
+        .map(|row| ArtistDto {
+            id: row.id as f64,
+            name: row.name,
+            track_count: row.track_count as f64,
+        })
+        .collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_artist_tracks(
+    id: f64,
+    state: State<'_, LibraryState>,
+) -> Result<Vec<LibraryTrackDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .artist_tracks(id as i64)
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows.into_iter().map(track_dto).collect())
 }

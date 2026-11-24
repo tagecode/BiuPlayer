@@ -37,6 +37,10 @@ export const commands = {
 	libraryTracks: (limit: number, offset: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_tracks", { limit, offset }, options),
 	libraryTrackCount: (options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_track_count", undefined, options),
 	librarySearch: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_search", { query, limit }, options),
+	libraryAlbums: (options?: InvokeOptions) => __TAURI_INVOKE<AlbumDto_Serialize[]>("library_albums", undefined, options),
+	libraryAlbumTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_album_tracks", { id }, options),
+	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
+	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	playlistList: (options?: InvokeOptions) => __TAURI_INVOKE<PlaylistDto[]>("playlist_list", undefined, options),
 	playlistCreate: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<number | null>("playlist_create", { name }, options),
 	playlistRename: (id: number | null, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("playlist_rename", { id, name }, options),
@@ -48,6 +52,24 @@ export const commands = {
 };
 
 /* Types */
+export type AlbumDto = AlbumDto_Serialize | AlbumDto_Deserialize;
+
+export type AlbumDto_Deserialize = {
+	id: number | null,
+	title: string,
+	artist?: string | null,
+	year?: number | null,
+	track_count: number | null,
+};
+
+export type AlbumDto_Serialize = {
+	id: number | null,
+	title: string,
+	artist: string | null,
+	year: number | null,
+	track_count: number | null,
+};
+
 export type AppInfo = {
 	name: string,
 	version: string,
@@ -64,6 +86,12 @@ export type AppPathsInfo = {
 	settings_file: string,
 	database_file: string,
 	portable: boolean,
+};
+
+export type ArtistDto = {
+	id: number | null,
+	name: string,
+	track_count: number | null,
 };
 
 export type AudioDevice = {

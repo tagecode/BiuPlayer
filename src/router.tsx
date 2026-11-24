@@ -2,6 +2,11 @@ import { createHashRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import { Shell } from "./Shell";
 import { Library } from "./pages/Library";
+import { AlbumDetail } from "./pages/AlbumDetail";
+import { Albums } from "./pages/Albums";
+import { ArtistDetail } from "./pages/ArtistDetail";
+import { Artists } from "./pages/Artists";
+import { NowPlaying } from "./pages/NowPlaying";
 import { PlaylistDetail } from "./pages/PlaylistDetail";
 import { Playlists } from "./pages/Playlists";
 import { Placeholder } from "./pages/Placeholder";
@@ -16,12 +21,12 @@ export const router = createHashRouter([
   {
     element: <Shell />,
     children: [
-      { path: "/", element: page("P-01", "pages.nowPlaying.title", "pages.nowPlaying.desc") },
+      { path: "/", element: <NowPlaying /> },
       { path: "/library", element: <Library /> },
-      { path: "/library/albums", element: page("P-03", "pages.albums.title", "pages.albums.desc") },
-      { path: "/library/albums/:id", element: page("P-04", "pages.album.title", "pages.album.desc") },
-      { path: "/library/artists", element: page("P-05", "pages.artists.title", "pages.artists.desc") },
-      { path: "/library/artists/:id", element: page("P-05", "pages.artist.title", "pages.artist.desc") },
+      { path: "/library/albums", element: <Albums /> },
+      { path: "/library/albums/:id", element: <AlbumDetail /> },
+      { path: "/library/artists", element: <Artists /> },
+      { path: "/library/artists/:id", element: <ArtistDetail /> },
       { path: "/library/genres", element: page("P-06", "pages.genres.title", "pages.genres.desc") },
       { path: "/playlists", element: <Playlists /> },
       { path: "/playlists/:id", element: <PlaylistDetail /> },
