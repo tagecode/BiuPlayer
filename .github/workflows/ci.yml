@@ -87,6 +87,9 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          GDK_BACKEND: "x11"
+          RUST_LOG: "info"
         run: |
           set +e
           timeout --signal=TERM --kill-after=3 15s \
@@ -98,6 +101,11 @@ jobs:
             echo "unexpected exit code: $code"
             exit 1
           fi
-          log=$(ls "$HOME"/.local/share/BiuPlayer/logs/biu.log.* | tail -1)
+          log=$(ls "$HOME"/.local/share/biuplayer/logs/biu.log.* 2>/dev/null | tail -1 || true)
+          if [ -z "$log" ]; then
+            echo "no application log found; home contents:"
+            find "$HOME/.local/share" -maxdepth 3 -type f 2>/dev/null | head -20
+            exit 1
+          fi
           grep -q "logging initialized" "$log"
           echo "runtime smoke ok: $log"
