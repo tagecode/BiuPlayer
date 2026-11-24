@@ -5,12 +5,18 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
+pub const SCHEMA_VERSION: i64 = 1;
+
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("database schema version {found} is newer than supported {supported}")]
+    SchemaTooNew { found: i64, supported: i64 },
+    #[error("database is corrupt: {0}")]
+    Corrupt(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,17 +40,72 @@ pub struct Database {
     conn: Connection,
 }
 
+/// Path of the pre-migration backup (`library.db.bak`).
+pub fn backup_path(path: &Path) -> std::path::PathBuf {
+    let mut value = path.as_os_str().to_owned();
+    value.push(".bak");
+    std::path::PathBuf::from(value)
+}
+
+/// Inspect an existing database before opening it for migration.
+///
+/// - New/empty files need no backup.
+/// - A database without `schema_migrations` is treated as legacy and copied.
+/// - A database newer than this binary is rejected instead of downgraded.
+fn prepare_existing(path: &Path) -> Result<(), LibraryError> {
+    if !path.exists() || std::fs::metadata(path)?.len() == 0 {
+        return Ok(());
+    }
+
+    let conn = Connection::open(path)?;
+    let check: String = conn.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+    if check != "ok" {
+        return Err(LibraryError::Corrupt(check));
+    }
+    let has_migrations: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations')",
+        [],
+        |row| row.get(0),
+    )?;
+    let max_version: i64 = if has_migrations {
+        conn.query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |row| row.get(0),
+        )?
+    } else {
+        0
+    };
+    drop(conn);
+
+    if max_version > SCHEMA_VERSION {
+        return Err(LibraryError::SchemaTooNew {
+            found: max_version,
+            supported: SCHEMA_VERSION,
+        });
+    }
+    if max_version < SCHEMA_VERSION {
+        std::fs::copy(path, backup_path(path))?;
+    }
+    Ok(())
+}
+
 impl Database {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, LibraryError> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
+        prepare_existing(path)?;
         let conn = Connection::open(path)?;
         let mut db = Self { conn };
         db.configure()?;
         db.migrate()?;
         Ok(db)
+    }
+
+    pub fn connection(&self) -> &Connection {
+        &self.conn
     }
 
     pub fn open_in_memory() -> Result<Self, LibraryError> {
@@ -76,8 +137,8 @@ impl Database {
         let applied: Option<i64> = self
             .conn
             .query_row(
-                "SELECT version FROM schema_migrations WHERE version = 1",
-                [],
+                "SELECT version FROM schema_migrations WHERE version = ?1",
+                [SCHEMA_VERSION],
                 |row| row.get(0),
             )
             .optional()?;
@@ -176,8 +237,8 @@ impl Database {
             END;",
         )?;
         tx.execute(
-            "INSERT INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'))",
-            [],
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (?1, datetime('now'))",
+            [SCHEMA_VERSION],
         )?;
         tx.commit()?;
         Ok(())
