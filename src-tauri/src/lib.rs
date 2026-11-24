@@ -1,4 +1,5 @@
 pub mod commands;
+mod diagnostics;
 mod logging;
 
 use std::path::Path;
@@ -25,6 +26,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::emit_test_events,
             commands::system::audio_devices,
             commands::system::app_paths,
+            commands::system::export_diagnostics,
         ])
         .typ::<AppInfo>()
         .typ::<PingReply>()
@@ -58,6 +60,7 @@ pub fn run() {
             paths.ensure().map_err(|err| {
                 std::io::Error::other(format!("cannot create app directories: {err}"))
             })?;
+            diagnostics::install_panic_hook(paths.log_dir.clone());
             let (guard, log_dir) = logging::init(&paths.log_dir)
                 .map_err(|err| std::io::Error::other(format!("logging init failed: {err}")))?;
             let loaded = biu_core::load_settings(&paths.settings_file);

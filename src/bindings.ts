@@ -10,6 +10,7 @@ export const commands = {
 	emitTestEvents: (count: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("emit_test_events", { count }, options),
 	audioDevices: (options?: InvokeOptions) => __TAURI_INVOKE<AudioDevice[]>("audio_devices", undefined, options),
 	appPaths: (options?: InvokeOptions) => __TAURI_INVOKE<AppPathsInfo>("app_paths", undefined, options),
+	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
 };
 
 /* Types */

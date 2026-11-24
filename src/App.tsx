@@ -10,6 +10,8 @@ function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [infoError, setInfoError] = useState("");
   const [paths, setPaths] = useState<AppPathsInfo | null>(null);
+  const [diagPath, setDiagPath] = useState("");
+  const [diagError, setDiagError] = useState("");
   const [pingInput, setPingInput] = useState("hello biu");
   const [pingReply, setPingReply] = useState<PingReply | null>(null);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
@@ -82,6 +84,15 @@ function App() {
     }
   }
 
+  async function runDiagnostics() {
+    setDiagError("");
+    try {
+      setDiagPath(await commands.exportDiagnostics());
+    } catch (err) {
+      setDiagError(String(err));
+    }
+  }
+
   async function loadDevices() {
     setDeviceError("");
     try {
@@ -146,6 +157,13 @@ function App() {
               <dd>{paths ? (paths.portable ? "已启用" : "未启用") : "—"}</dd>
             </div>
           </dl>
+          <div className="inline" style={{ marginTop: 12 }}>
+            <button onClick={runDiagnostics} disabled={!inTauri}>
+              导出诊断包
+            </button>
+            <span className="muted mono">{diagPath || "settings + 最近日志 + 系统信息"}</span>
+          </div>
+          {diagError && <p className="error">{diagError}</p>}
         </section>
 
         <section className="card">

@@ -87,6 +87,13 @@ pub fn app_paths(paths: State<'_, AppPathsState>) -> AppPathsInfo {
     }
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn export_diagnostics(paths: State<'_, AppPathsState>) -> Result<String, String> {
+    crate::diagnostics::export_diagnostics(&paths.0, env!("CARGO_PKG_VERSION"))
+        .map(|path| path.display().to_string())
+}
+
 fn now_ms() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
