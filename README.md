@@ -108,6 +108,12 @@ docs/                    产品/架构/MVP/报告
 
 > 产物未签名/未公证；macOS 需右键打开或清除 quarantine；Windows 需要 WebView2。
 
+## 发布
+
+- 安装/卸载：[docs/INSTALL.md](docs/INSTALL.md)
+- 发布流程：[docs/RELEASE.md](docs/RELEASE.md)
+- 变更记录：[CHANGELOG.md](CHANGELOG.md)
+
 ## 下一步
 
 1. 补 Windows 11 / macOS arm64 真机启动与出声冒烟。
