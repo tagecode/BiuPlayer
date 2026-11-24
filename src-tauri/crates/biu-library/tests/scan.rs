@@ -35,5 +35,6 @@ fn scan_inserts_and_searches() {
     assert_eq!(second.files_seen, 2);
     assert_eq!(db.track_count().unwrap(), 2);
 
+    drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
