@@ -2,6 +2,7 @@ import { createHashRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import { Shell } from "./Shell";
 import { Placeholder } from "./pages/Placeholder";
+import { States } from "./pages/States";
 import type { MessageKey } from "./i18n";
 
 function page(pageId: string, titleKey: MessageKey, descKey: MessageKey) {
@@ -29,6 +30,7 @@ export const router = createHashRouter([
       { path: "/settings/:section", element: page("P-13", "pages.settings.title", "pages.settings.desc") },
       { path: "/settings", element: <Navigate to="/settings/general" replace /> },
       { path: "/tools", element: page("P-14", "pages.tools.title", "pages.tools.desc") },
+      { path: "/dev/states", element: <States /> },
       { path: "/m0", element: <App /> },
     ],
   },
