@@ -30,7 +30,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            libasound2-dev
+            libasound2-dev \
+            xvfb
 
       - uses: pnpm/action-setup@v4
         with:
@@ -79,3 +80,24 @@ jobs:
 
       - name: Tauri compile smoke
         run: pnpm tauri build --no-bundle
+
+      - name: Linux runtime smoke
+        if: startsWith(matrix.os, 'ubuntu')
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+        run: |
+          set +e
+          timeout --signal=TERM --kill-after=3 15s \
+            xvfb-run -a src-tauri/target/release/biuplayer
+          code=$?
+          set -e
+          # A GUI app is expected to keep running until timeout kills it.
+          if [ "$code" -ne 124 ]; then
+            echo "unexpected exit code: $code"
+            exit 1
+          fi
+          log=$(ls "$HOME"/.local/share/BiuPlayer/logs/biu.log.* | tail -1)
+          grep -q "logging initialized" "$log"
+          echo "runtime smoke ok: $log"
