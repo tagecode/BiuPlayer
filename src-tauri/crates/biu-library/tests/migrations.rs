@@ -71,6 +71,7 @@ fn legacy_database_is_backed_up_before_migration() {
         )
         .unwrap();
     assert!(has_legacy, "backup must preserve pre-migration schema");
+    drop(backup_conn);
     let _ = fs::remove_dir_all(path.parent().unwrap());
 }
 
