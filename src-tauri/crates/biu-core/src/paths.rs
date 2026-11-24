@@ -62,12 +62,13 @@ impl AppPaths {
 
 #[cfg(target_os = "windows")]
 fn default_roots(exe_dir: &Path) -> (PathBuf, PathBuf) {
+    let (fallback_data, fallback_cache) = fallback_roots(exe_dir);
     let data = env_path("APPDATA")
         .map(|base| base.join("BiuPlayer"))
-        .unwrap_or_else(|| exe_dir.join("data"));
+        .unwrap_or(fallback_data);
     let cache = env_path("LOCALAPPDATA")
         .map(|base| base.join("BiuPlayer").join("cache"))
-        .unwrap_or_else(|| data.join("cache"));
+        .unwrap_or(fallback_cache);
     (data, cache)
 }
 
