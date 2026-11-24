@@ -2,6 +2,7 @@ pub mod commands;
 mod diagnostics;
 mod logging;
 pub mod queue;
+mod tray;
 
 use std::path::Path;
 #[cfg(debug_assertions)]
@@ -104,6 +105,12 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -163,6 +170,21 @@ pub fn run() {
                 database_file.clone(),
             ));
             commands::player::spawn_player_events(app.handle().clone());
+            if let Err(err) = tray::setup_tray(app.handle()) {
+                tracing::warn!(error = %err, "failed to create tray icon");
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                if loaded.settings.general.start_minimized {
+                    let _ = window.hide();
+                }
+                let window_for_close = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_for_close.hide();
+                    }
+                });
+            }
             println!("BiuPlayer logs: {}", log_dir.display());
             Ok(())
         })

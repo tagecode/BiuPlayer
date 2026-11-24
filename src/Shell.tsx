@@ -69,6 +69,38 @@ export function Shell() {
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
+    listen<string>("tray:action", async (event) => {
+      try {
+        switch (event.payload) {
+          case "play_pause": {
+            const snapshot = await commands.playerSnapshot();
+            if (snapshot.state === "playing") await commands.playerPause();
+            else await commands.playerPlay();
+            break;
+          }
+          case "prev":
+            await commands.playerPrev();
+            break;
+          case "next":
+            await commands.playerNext();
+            break;
+        }
+      } catch (error) {
+        console.warn("tray action failed", error);
+      }
+    }).then((stop) => {
+      if (disposed) stop();
+      else unlisten = stop;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
     listen<PlayerStateDto_Serialize>("player:state", (event) => {
       if (!disposed) setPlayer(event.payload);
     }).then((stop) => {
