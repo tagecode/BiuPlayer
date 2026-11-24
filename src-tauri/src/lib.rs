@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use biu_core::AppPaths;
 use biu_ipc::{
-    AppInfo, AppPathsInfo, AudioDevice, LibraryScanDto, LibraryTrackDto, PingReply, PlayerStateDto,
-    TestTick,
+    AppInfo, AppPathsInfo, AudioDevice, LibraryScanDto, LibraryScanStatusDto, LibraryTrackDto,
+    PingReply, PlayerStateDto, TestTick,
 };
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
@@ -38,6 +38,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_set_volume,
             commands::player::player_snapshot,
             commands::library::library_add_folder,
+            commands::library::library_scan_start,
+            commands::library::library_scan_status,
+            commands::library::library_scan_pause,
+            commands::library::library_scan_resume,
+            commands::library::library_scan_cancel,
             commands::library::library_tracks,
             commands::library::library_track_count,
             commands::library::library_search,
@@ -49,6 +54,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<AppPathsInfo>()
         .typ::<PlayerStateDto>()
         .typ::<LibraryScanDto>()
+        .typ::<LibraryScanStatusDto>()
         .typ::<LibraryTrackDto>()
 }
 
@@ -107,7 +113,10 @@ pub fn run() {
                     None
                 }
             };
-            app.manage(commands::library::LibraryState(std::sync::Mutex::new(library)));
+            app.manage(commands::library::LibraryState::new(
+                library,
+                database_file.clone(),
+            ));
             commands::player::spawn_player_events(app.handle().clone());
             println!("BiuPlayer logs: {}", log_dir.display());
             Ok(())

@@ -413,3 +413,7 @@ body {
 .track-table tbody tr:hover {
   background: var(--panel-2);
 }
+
+.library-add {
+  flex-wrap: wrap;
+}

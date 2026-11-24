@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { commands, type LibraryTrackDto_Serialize } from "../bindings";
+import {
+  commands,
+  type LibraryScanStatusDto_Serialize,
+  type LibraryTrackDto_Serialize,
+} from "../bindings";
 
 function errorText(error: unknown): string {
   if (typeof error === "string") return error;
@@ -20,8 +24,9 @@ export function Library() {
   const [folder, setFolder] = useState("");
   const [tracks, setTracks] = useState<LibraryTrackDto_Serialize[]>([]);
   const [count, setCount] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
+  const busy = scan?.state === "scanning" || scan?.state === "cancelling";
 
   const refresh = useCallback(async () => {
     const [list, total] = await Promise.all([
@@ -36,24 +41,60 @@ export function Library() {
     refresh().catch((error) => setMessage(errorText(error)));
   }, [refresh]);
 
-  async function scan() {
+  useEffect(() => {
+    if (scan?.state !== "scanning") return;
+    const timer = window.setInterval(() => {
+      commands
+        .libraryScanStatus()
+        .then((status) => {
+          setScan(status);
+          if (status.state === "completed") {
+            refresh().catch((error) => setMessage(errorText(error)));
+          }
+        })
+        .catch((error) => setMessage(errorText(error)));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [scan?.state, refresh]);
+
+  async function startScan() {
     const path = folder.trim();
     if (!path) {
       setMessage("先填写一个绝对路径");
       return;
     }
-    setBusy(true);
-    setMessage("扫描中…");
     try {
-      const report = await commands.libraryAddFolder(path);
-      await refresh();
-      setMessage(
-        `扫描完成：发现 ${report.files_seen ?? 0}，新增 ${report.inserted ?? 0}，跳过 ${report.skipped ?? 0}，用时 ${report.elapsed_ms ?? 0}ms`,
-      );
+      const status = await commands.libraryScanStart(path);
+      setScan(status);
+      setMessage("扫描中…");
     } catch (error) {
       setMessage(errorText(error));
-    } finally {
-      setBusy(false);
+    }
+  }
+
+  async function pauseScan() {
+    try {
+      setScan(await commands.libraryScanPause());
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }
+
+  async function resumeScan() {
+    try {
+      setScan(await commands.libraryScanResume());
+      setMessage("继续扫描…");
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }
+
+  async function cancelScan() {
+    try {
+      setScan(await commands.libraryScanCancel());
+      setMessage("已取消，可稍后继续");
+    } catch (error) {
+      setMessage(errorText(error));
     }
   }
 
@@ -87,11 +128,33 @@ export function Library() {
             onChange={(event) => setFolder(event.target.value)}
             disabled={busy}
           />
-          <button type="button" onClick={scan} disabled={busy}>
+          <button type="button" onClick={startScan} disabled={busy || scan?.state === "paused"}>
             {busy ? "扫描中…" : "添加并扫描"}
           </button>
+          {scan?.state === "scanning" && (
+            <button type="button" className="ghost" onClick={pauseScan}>
+              暂停
+            </button>
+          )}
+          {scan?.state === "paused" && (
+            <button type="button" className="ghost" onClick={resumeScan}>
+              继续
+            </button>
+          )}
+          {(scan?.state === "scanning" || scan?.state === "paused") && (
+            <button type="button" className="ghost" onClick={cancelScan}>
+              取消
+            </button>
+          )}
         </div>
         {message && <p className="library-message">{message}</p>}
+        {scan && scan.state !== "idle" && (
+          <p className="library-message">
+            扫描状态：{scan.state} · 发现 {scan.files_seen ?? 0} · 新增{" "}
+            {scan.inserted ?? 0} · 跳过 {scan.skipped ?? 0}
+            {scan.error ? ` · ${scan.error}` : ""}
+          </p>
+        )}
       </div>
 
       <div className="card">

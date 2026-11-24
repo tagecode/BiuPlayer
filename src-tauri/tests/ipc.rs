@@ -76,16 +76,16 @@ fn player_open_rejects_missing_file() {
 #[test]
 fn library_add_folder_scans_fixtures() {
     use std::path::PathBuf;
-    use std::sync::Mutex;
     use tauri::Manager;
 
     let app = tauri::test::mock_builder()
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app");
     let database = biu_library::Database::open_in_memory().unwrap();
-    app.manage(biuplayer_lib::commands::library::LibraryState(Mutex::new(
+    app.manage(biuplayer_lib::commands::library::LibraryState::new(
         Some(database),
-    )));
+        PathBuf::from(":memory:"),
+    ));
 
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0");
     let report = biuplayer_lib::commands::library::library_add_folder(
@@ -102,4 +102,49 @@ fn library_add_folder_scans_fixtures() {
     assert!(tracks
         .iter()
         .any(|track| track.format.as_deref() == Some("flac")));
+}
+
+#[test]
+fn library_scan_start_reports_progress_until_complete() {
+    use std::path::PathBuf;
+    use tauri::Manager;
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app");
+    let db_path = std::env::temp_dir().join(format!(
+        "biu-scan-{}-{}.db",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    app.manage(biuplayer_lib::commands::library::LibraryState::new(
+        None,
+        db_path.clone(),
+    ));
+    let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0");
+
+    let started = biuplayer_lib::commands::library::library_scan_start(
+        fixtures.display().to_string(),
+        app.state(),
+    )
+    .expect("start scan");
+    assert_eq!(started.state, "scanning");
+
+    let mut final_state = String::new();
+    for _ in 0..100 {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let status = biuplayer_lib::commands::library::library_scan_status(app.state());
+        final_state = status.state;
+        if final_state == "completed" || final_state == "error" {
+            assert_eq!(status.files_seen, 7.0, "{:?}", status.error);
+            break;
+        }
+    }
+    assert_eq!(final_state, "completed");
+    let _ = std::fs::remove_file(&db_path);
+    let _ = std::fs::remove_file(db_path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(db_path.with_extension("db-shm"));
 }

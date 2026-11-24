@@ -129,6 +129,31 @@ pub struct LibraryScanDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct LibraryScanStatusDto {
+    pub state: String,
+    pub root: Option<String>,
+    pub files_seen: f64,
+    pub inserted: f64,
+    pub skipped: f64,
+    pub total_tracks: f64,
+    pub error: Option<String>,
+}
+
+impl Default for LibraryScanStatusDto {
+    fn default() -> Self {
+        Self {
+            state: "idle".to_string(),
+            root: None,
+            files_seen: 0.0,
+            inserted: 0.0,
+            skipped: 0.0,
+            total_tracks: 0.0,
+            error: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LibraryTrackDto {
     pub id: f64,
     pub title: String,

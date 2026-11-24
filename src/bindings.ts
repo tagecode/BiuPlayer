@@ -19,6 +19,11 @@ export const commands = {
 	playerSetVolume: (volume: number | null, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_set_volume", { volume }, options),
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
 	libraryAddFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanDto>("library_add_folder", { path }, options),
+	libraryScanStart: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_start", { path }, options),
+	libraryScanStatus: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_status", undefined, options),
+	libraryScanPause: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_pause", undefined, options),
+	libraryScanResume: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_resume", undefined, options),
+	libraryScanCancel: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_cancel", undefined, options),
 	libraryTracks: (limit: number, offset: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_tracks", { limit, offset }, options),
 	libraryTrackCount: (options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_track_count", undefined, options),
 	librarySearch: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_search", { query, limit }, options),
@@ -69,6 +74,28 @@ export type LibraryScanDto = {
 	skipped: number | null,
 	elapsed_ms: number | null,
 	total_tracks: number | null,
+};
+
+export type LibraryScanStatusDto = LibraryScanStatusDto_Serialize | LibraryScanStatusDto_Deserialize;
+
+export type LibraryScanStatusDto_Deserialize = {
+	state: string,
+	root?: string | null,
+	files_seen: number | null,
+	inserted: number | null,
+	skipped: number | null,
+	total_tracks: number | null,
+	error?: string | null,
+};
+
+export type LibraryScanStatusDto_Serialize = {
+	state: string,
+	root: string | null,
+	files_seen: number | null,
+	inserted: number | null,
+	skipped: number | null,
+	total_tracks: number | null,
+	error: string | null,
 };
 
 export type LibraryTrackDto = LibraryTrackDto_Serialize | LibraryTrackDto_Deserialize;

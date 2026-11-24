@@ -1,15 +1,20 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use biu_library::Database;
 
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 fn temp_root() -> PathBuf {
+    let unique = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let root = std::env::temp_dir().join(format!(
-        "biu-library-test-{}-{}",
+        "biu-library-test-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        unique
     ));
     std::fs::create_dir_all(&root).unwrap();
     root
@@ -33,6 +38,8 @@ fn scan_inserts_and_searches() {
 
     let second = db.scan_folder(folder_id, &root).unwrap();
     assert_eq!(second.files_seen, 2);
+    assert_eq!(second.inserted, 0);
+    assert_eq!(second.skipped, 2);
     assert_eq!(db.track_count().unwrap(), 2);
 
     drop(db);
@@ -75,6 +82,37 @@ fn scan_reads_tags_and_lists_tracks() {
     assert_eq!(track.album.as_deref(), Some("测试专辑"));
     assert!(track.duration_ms.unwrap_or(0) >= 1900);
     assert_eq!(track.format.as_deref(), Some("mp3"));
+
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn scan_pauses_and_resumes_without_duplicates() {
+    use biu_library::{ScanControl, ScanOutcome, ScanProgress};
+
+    let root = temp_root();
+    for index in 0..20 {
+        std::fs::write(root.join(format!("track-{index:02}.mp3")), []).unwrap();
+    }
+    let mut db = Database::open(root.join("test.db")).unwrap();
+    let folder_id = db.add_folder(&root).unwrap();
+
+    let control = ScanControl::default();
+    control.pause_after(5);
+    let progress = ScanProgress::default();
+    let first = db
+        .scan_folder_controlled(folder_id, &root, &control, &progress)
+        .unwrap();
+    assert!(matches!(first, ScanOutcome::Paused(_)));
+    assert_eq!(db.track_count().unwrap(), 5);
+
+    let resume = ScanControl::default();
+    let second = db
+        .scan_folder_controlled(folder_id, &root, &resume, &progress)
+        .unwrap();
+    assert!(matches!(second, ScanOutcome::Completed(_)));
+    assert_eq!(db.track_count().unwrap(), 20);
 
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();

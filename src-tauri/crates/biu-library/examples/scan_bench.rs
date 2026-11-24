@@ -41,6 +41,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("fts: hits={} elapsed={query_ms}ms", hits.len());
 
+    let rescan_start = Instant::now();
+    let rescan = db.scan_folder(folder_id, &root)?;
+    println!(
+        "rescan: seen={} skipped={} elapsed={}ms",
+        rescan.files_seen,
+        rescan.skipped,
+        rescan_start.elapsed().as_millis()
+    );
+
     std::fs::remove_dir_all(&root)?;
     Ok(())
 }

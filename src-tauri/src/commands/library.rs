@@ -1,16 +1,43 @@
-use std::path::Path;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
-use biu_ipc::{CommandError, LibraryScanDto, LibraryTrackDto};
-use biu_library::{Database, ScanReport};
+use biu_ipc::{CommandError, LibraryScanDto, LibraryScanStatusDto, LibraryTrackDto};
+use biu_library::{Database, ScanControl, ScanOutcome, ScanProgress, ScanReport};
 use tauri::State;
 
 #[derive(Default)]
-pub struct LibraryState(pub Mutex<Option<Database>>);
+pub struct ScanSession {
+    pub status: LibraryScanStatusDto,
+    control: Option<Arc<ScanControl>>,
+    progress: Option<Arc<ScanProgress>>,
+}
 
-fn lock(state: &LibraryState) -> std::sync::MutexGuard<'_, Option<Database>> {
+pub struct LibraryState {
+    pub db: Arc<Mutex<Option<Database>>>,
+    pub database_file: PathBuf,
+    pub scan: Arc<Mutex<ScanSession>>,
+}
+
+impl LibraryState {
+    pub fn new(db: Option<Database>, database_file: PathBuf) -> Self {
+        Self {
+            db: Arc::new(Mutex::new(db)),
+            database_file,
+            scan: Arc::new(Mutex::new(ScanSession::default())),
+        }
+    }
+}
+
+fn lock_db(state: &LibraryState) -> std::sync::MutexGuard<'_, Option<Database>> {
     state
-        .0
+        .db
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn lock_scan(state: &LibraryState) -> std::sync::MutexGuard<'_, ScanSession> {
+    state
+        .scan
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -26,23 +53,26 @@ fn scan_dto(report: ScanReport, total: f64) -> LibraryScanDto {
     }
 }
 
+fn canonical_folder(path: &str) -> Result<PathBuf, CommandError> {
+    let root = Path::new(path);
+    if !root.is_dir() {
+        return Err(CommandError::invalid_argument(
+            "folder does not exist or is not a directory",
+        ));
+    }
+    root.canonicalize()
+        .map_err(|err| CommandError::invalid_argument(err.to_string()))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn library_add_folder(
     path: String,
     state: State<'_, LibraryState>,
 ) -> Result<LibraryScanDto, CommandError> {
-    let root = Path::new(&path);
-    if !root.is_dir() {
-        return Err(CommandError::invalid_argument(
-            "folder does not exist or is not a directory",
-        ));
-    }
-    let root = root
-        .canonicalize()
-        .map_err(|err| CommandError::invalid_argument(err.to_string()))?;
+    let root = canonical_folder(&path)?;
 
-    let mut guard = lock(&state);
+    let mut guard = lock_db(&state);
     let database = guard
         .as_mut()
         .ok_or_else(|| CommandError::internal("library database is not open"))?;
@@ -58,6 +88,153 @@ pub fn library_add_folder(
     Ok(scan_dto(report, total as f64))
 }
 
+fn begin_scan(state: &LibraryState, root: PathBuf) -> Result<LibraryScanStatusDto, CommandError> {
+    let mut session = lock_scan(state);
+    if session.status.state == "scanning" || session.status.state == "cancelling" {
+        return Err(CommandError::invalid_argument("a scan is already running"));
+    }
+    if session.control.is_some() {
+        return Err(CommandError::invalid_argument(
+            "the previous scan is still stopping",
+        ));
+    }
+
+    let control = Arc::new(ScanControl::default());
+    let progress = Arc::new(ScanProgress::default());
+    let status = LibraryScanStatusDto {
+        state: "scanning".to_string(),
+        root: Some(root.display().to_string()),
+        files_seen: 0.0,
+        inserted: 0.0,
+        skipped: 0.0,
+        total_tracks: session.status.total_tracks,
+        error: None,
+    };
+    session.status = status.clone();
+    session.control = Some(control.clone());
+    session.progress = Some(progress.clone());
+    drop(session);
+
+    let database_file = state.database_file.clone();
+    let session = state.scan.clone();
+    std::thread::spawn(move || {
+        let result = (|| {
+            let mut database = Database::open(&database_file)?;
+            let folder_id = database.add_folder(&root)?;
+            database.scan_folder_controlled(folder_id, &root, &control, &progress)
+        })();
+
+        let mut session = session
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match result {
+            Ok(ScanOutcome::Completed(report)) => {
+                session.status.state = "completed".to_string();
+                session.status.files_seen = report.files_seen as f64;
+                session.status.inserted = report.inserted as f64;
+                session.status.skipped = report.skipped as f64;
+                session.status.total_tracks += report.inserted as f64;
+            }
+            Ok(ScanOutcome::Paused(report)) => {
+                session.status.state = "paused".to_string();
+                session.status.files_seen = report.files_seen as f64;
+                session.status.inserted = report.inserted as f64;
+                session.status.skipped = report.skipped as f64;
+            }
+            Ok(ScanOutcome::Cancelled(report)) => {
+                session.status.state = "cancelled".to_string();
+                session.status.files_seen = report.files_seen as f64;
+                session.status.inserted = report.inserted as f64;
+                session.status.skipped = report.skipped as f64;
+            }
+            Err(err) => {
+                session.status.state = "error".to_string();
+                session.status.error = Some(err.to_string());
+            }
+        }
+        session.control = None;
+        session.progress = None;
+    });
+
+    Ok(status)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_start(
+    path: String,
+    state: State<'_, LibraryState>,
+) -> Result<LibraryScanStatusDto, CommandError> {
+    let root = canonical_folder(&path)?;
+    begin_scan(&state, root)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_status(state: State<'_, LibraryState>) -> LibraryScanStatusDto {
+    let mut session = lock_scan(&state);
+    if session.status.state == "scanning" {
+        if let Some(progress) = session.progress.as_ref() {
+            let (seen, inserted, skipped) = progress.snapshot();
+            session.status.files_seen = seen as f64;
+            session.status.inserted = inserted as f64;
+            session.status.skipped = skipped as f64;
+        }
+    }
+    session.status.clone()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_pause(
+    state: State<'_, LibraryState>,
+) -> Result<LibraryScanStatusDto, CommandError> {
+    let mut session = lock_scan(&state);
+    if session.status.state != "scanning" {
+        return Err(CommandError::invalid_argument("no scan is running"));
+    }
+    if let Some(control) = session.control.as_ref() {
+        control.pause();
+    }
+    session.status.state = "paused".to_string();
+    Ok(session.status.clone())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_resume(
+    state: State<'_, LibraryState>,
+) -> Result<LibraryScanStatusDto, CommandError> {
+    let root = {
+        let session = lock_scan(&state);
+        if session.status.state != "paused" && session.status.state != "cancelled" {
+            return Err(CommandError::invalid_argument("no paused scan to resume"));
+        }
+        session
+            .status
+            .root
+            .clone()
+            .ok_or_else(|| CommandError::internal("scan root is missing"))?
+    };
+    begin_scan(&state, PathBuf::from(root))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_cancel(
+    state: State<'_, LibraryState>,
+) -> Result<LibraryScanStatusDto, CommandError> {
+    let mut session = lock_scan(&state);
+    if session.status.state != "scanning" && session.status.state != "paused" {
+        return Err(CommandError::invalid_argument("no scan to cancel"));
+    }
+    if let Some(control) = session.control.as_ref() {
+        control.cancel();
+    }
+    session.status.state = "cancelled".to_string();
+    Ok(session.status.clone())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn library_tracks(
@@ -65,7 +242,7 @@ pub fn library_tracks(
     offset: u32,
     state: State<'_, LibraryState>,
 ) -> Result<Vec<LibraryTrackDto>, CommandError> {
-    let guard = lock(&state);
+    let guard = lock_db(&state);
     let Some(database) = guard.as_ref() else {
         return Ok(Vec::new());
     };
@@ -89,7 +266,7 @@ pub fn library_tracks(
 #[tauri::command]
 #[specta::specta]
 pub fn library_track_count(state: State<'_, LibraryState>) -> f64 {
-    let guard = lock(&state);
+    let guard = lock_db(&state);
     guard
         .as_ref()
         .and_then(|database| database.track_count().ok())
@@ -107,7 +284,7 @@ pub fn library_search(
     if query.is_empty() {
         return Ok(Vec::new());
     }
-    let guard = lock(&state);
+    let guard = lock_db(&state);
     let Some(database) = guard.as_ref() else {
         return Ok(Vec::new());
     };

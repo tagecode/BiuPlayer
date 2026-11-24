@@ -32,6 +32,94 @@ pub struct ScanReport {
     pub elapsed_ms: u64,
 }
 
+/// Pause/cancel flags shared with a background scan thread.
+#[derive(Debug, Default)]
+pub struct ScanControl {
+    paused: std::sync::atomic::AtomicBool,
+    cancelled: std::sync::atomic::AtomicBool,
+    pause_after: std::sync::atomic::AtomicU64,
+}
+
+impl ScanControl {
+    pub fn pause(&self) {
+        self.paused
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn resume(&self) {
+        self.paused
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Pause automatically once this many files have been seen (tests/automation).
+    pub fn pause_after(&self, files: u64) {
+        self.pause_after
+            .store(files, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Monotonic counters for a running scan.
+#[derive(Debug, Default)]
+pub struct ScanProgress {
+    seen: std::sync::atomic::AtomicU64,
+    inserted: std::sync::atomic::AtomicU64,
+    skipped: std::sync::atomic::AtomicU64,
+}
+
+impl ScanProgress {
+    pub fn snapshot(&self) -> (u64, u64, u64) {
+        use std::sync::atomic::Ordering::Relaxed;
+        (
+            self.seen.load(Relaxed),
+            self.inserted.load(Relaxed),
+            self.skipped.load(Relaxed),
+        )
+    }
+
+    fn reset(&self) {
+        use std::sync::atomic::Ordering::Relaxed;
+        self.seen.store(0, Relaxed);
+        self.inserted.store(0, Relaxed);
+        self.skipped.store(0, Relaxed);
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ScanCheckpoint {
+    last_path: String,
+    seen: u64,
+    inserted: u64,
+    skipped: u64,
+}
+
+#[derive(Debug)]
+pub enum ScanOutcome {
+    Completed(ScanReport),
+    Paused(ScanReport),
+    Cancelled(ScanReport),
+}
+
+impl ScanOutcome {
+    pub fn report(&self) -> &ScanReport {
+        match self {
+            Self::Completed(report) | Self::Paused(report) | Self::Cancelled(report) => report,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct TrackTags {
     title: Option<String>,
@@ -369,7 +457,64 @@ impl Database {
     }
 
     pub fn scan_folder(&mut self, folder_id: i64, root: &Path) -> Result<ScanReport, LibraryError> {
+        let control = ScanControl::default();
+        let progress = ScanProgress::default();
+        match self.scan_folder_controlled(folder_id, root, &control, &progress)? {
+            ScanOutcome::Completed(report) => Ok(report),
+            ScanOutcome::Paused(_) | ScanOutcome::Cancelled(_) => {
+                unreachable!("a scan without control flags cannot pause or cancel")
+            }
+        }
+    }
+
+    fn scan_checkpoint(&self, folder_id: i64) -> Result<Option<ScanCheckpoint>, LibraryError> {
+        let state: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT scan_state FROM folders WHERE id = ?1",
+                params![folder_id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(state.and_then(|raw| serde_json::from_str::<ScanCheckpoint>(&raw).ok()))
+    }
+
+    fn store_checkpoint(
+        &self,
+        folder_id: i64,
+        last_path: &str,
+        report: &ScanReport,
+    ) -> Result<(), LibraryError> {
+        let checkpoint = ScanCheckpoint {
+            last_path: last_path.to_string(),
+            seen: report.files_seen,
+            inserted: report.inserted,
+            skipped: report.skipped,
+        };
+        let raw = serde_json::to_string(&checkpoint)
+            .map_err(|err| LibraryError::Io(std::io::Error::other(err)))?;
+        self.conn.execute(
+            "UPDATE folders SET scan_state = ?1 WHERE id = ?2",
+            params![raw, folder_id],
+        )?;
+        Ok(())
+    }
+
+    /// Scan a folder while honoring pause/cancel and persisting a resume checkpoint.
+    ///
+    /// The checkpoint stores the last fully processed path; resuming walks the tree
+    /// again and skips entries up to (and including) that path. Unchanged files are
+    /// skipped before tags are read by comparing size and mtime.
+    pub fn scan_folder_controlled(
+        &mut self,
+        folder_id: i64,
+        root: &Path,
+        control: &ScanControl,
+        progress: &ScanProgress,
+    ) -> Result<ScanOutcome, LibraryError> {
         let started = Instant::now();
+        progress.reset();
         let mut report = ScanReport {
             files_seen: 0,
             inserted: 0,
@@ -378,9 +523,13 @@ impl Database {
             elapsed_ms: 0,
         };
 
-        let tx = self.conn.transaction()?;
+        let resume_from = self.scan_checkpoint(folder_id)?.map(|c| c.last_path);
+        let mut resuming = resume_from.is_some();
+        let mut last_path: Option<String> = None;
+        let mut since_checkpoint = 0u64;
         let mut artist_cache: HashMap<String, i64> = HashMap::new();
         let mut album_cache: HashMap<(String, Option<i64>), i64> = HashMap::new();
+
         for entry in WalkDir::new(root).follow_links(false).into_iter() {
             let entry = match entry {
                 Ok(entry) => entry,
@@ -415,20 +564,83 @@ impl Database {
             ) {
                 continue;
             }
+            let path_string = path.display().to_string();
+            if resuming {
+                if resume_from.as_deref() == Some(path_string.as_str()) {
+                    resuming = false;
+                }
+                continue;
+            }
+            let pause_after = control
+                .pause_after
+                .load(std::sync::atomic::Ordering::Relaxed);
+            if pause_after > 0
+                && progress.seen.load(std::sync::atomic::Ordering::Relaxed) >= pause_after
+            {
+                control.pause();
+            }
+            if control.is_cancelled() {
+                report.elapsed_ms = started.elapsed().as_millis() as u64;
+                if let Some(last) = last_path.as_deref() {
+                    self.store_checkpoint(folder_id, last, &report)?;
+                }
+                return Ok(ScanOutcome::Cancelled(report));
+            }
+            if control.is_paused() {
+                report.elapsed_ms = started.elapsed().as_millis() as u64;
+                if let Some(last) = last_path.as_deref() {
+                    self.store_checkpoint(folder_id, last, &report)?;
+                }
+                return Ok(ScanOutcome::Paused(report));
+            }
+
             let metadata = match entry.metadata() {
                 Ok(metadata) => metadata,
                 Err(_) => {
                     report.skipped += 1;
+                    progress
+                        .skipped
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     continue;
                 }
             };
             report.files_seen += 1;
+            progress
+                .seen
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let mtime = metadata
                 .modified()
                 .ok()
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
+            let size = metadata.len() as i64;
+
+            let tx = self.conn.transaction()?;
+            let existing: Option<(i64, i64)> = tx
+                .query_row(
+                    "SELECT size_bytes, mtime FROM tracks WHERE path = ?1",
+                    params![path_string],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            if existing == Some((size, mtime)) {
+                tx.commit()?;
+                report.skipped += 1;
+                progress
+                    .skipped
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                last_path = Some(path_string);
+                since_checkpoint += 1;
+                if since_checkpoint >= 50 {
+                    if let Some(last) = last_path.as_deref() {
+                        self.store_checkpoint(folder_id, last, &report)?;
+                    }
+                    since_checkpoint = 0;
+                }
+                continue;
+            }
+
             let tags = read_tags(path);
             let title = tags
                 .as_ref()
@@ -453,7 +665,7 @@ impl Database {
                 _ => None,
             };
 
-            let changed = tx.execute(
+            tx.execute(
                 "INSERT INTO tracks(
                     folder_id, path, title, artist_id, album_id, track_no, disc_no,
                     genre, year, duration_ms, sample_rate, channels, bitrate,
@@ -476,11 +688,10 @@ impl Database {
                     format = excluded.format,
                     size_bytes = excluded.size_bytes,
                     mtime = excluded.mtime,
-                    updated_at = datetime('now')
-                 WHERE tracks.size_bytes <> excluded.size_bytes OR tracks.mtime <> excluded.mtime",
+                    updated_at = datetime('now')",
                 params![
                     folder_id,
-                    path.display().to_string(),
+                    path_string,
                     title,
                     artist_id,
                     album_id,
@@ -493,24 +704,38 @@ impl Database {
                     tags.as_ref().and_then(|tags| tags.channels),
                     tags.as_ref().and_then(|tags| tags.bitrate),
                     ext,
-                    metadata.len() as i64,
+                    size,
                     mtime
                 ],
             )?;
-            if changed == 1 {
-                report.inserted += 1;
+            tx.commit()?;
+            if existing.is_some() {
+                report.updated += 1;
+                progress
+                    .inserted
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             } else {
-                report.skipped += 1;
+                report.inserted += 1;
+                progress
+                    .inserted
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            last_path = Some(path_string);
+            since_checkpoint += 1;
+            if since_checkpoint >= 50 {
+                if let Some(last) = last_path.as_deref() {
+                    self.store_checkpoint(folder_id, last, &report)?;
+                }
+                since_checkpoint = 0;
             }
         }
 
-        tx.execute(
+        self.conn.execute(
             "UPDATE folders SET last_scan_at = datetime('now'), scan_state = 'complete' WHERE id = ?1",
             params![folder_id],
         )?;
-        tx.commit()?;
         report.elapsed_ms = started.elapsed().as_millis() as u64;
-        Ok(report)
+        Ok(ScanOutcome::Completed(report))
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<TrackRow>, LibraryError> {
