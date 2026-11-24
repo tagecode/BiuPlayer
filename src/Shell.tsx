@@ -352,6 +352,16 @@ export function Shell() {
               {playing ? "⏸" : "▶"}
             </button>
             <button
+              type="button"
+              className="ghost"
+              aria-label={t("player.stop")}
+              title={t("player.stop")}
+              onClick={() => run(async () => setPlayer(await commands.playerStop()))}
+              disabled={!hasTrack}
+            >
+              ⏹
+            </button>
+            <button
               className="ghost"
               aria-label={t("player.next")}
               onClick={() => run(async () => {
