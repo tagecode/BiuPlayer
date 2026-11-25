@@ -1190,6 +1190,36 @@ impl Database {
         Ok(())
     }
 
+    pub fn track_id_by_path(&self, path: &str) -> Result<Option<i64>, LibraryError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT id FROM tracks WHERE path = ?1 AND missing = 0",
+                params![path],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    pub fn track_ids_under(&self, root: &str) -> Result<Vec<i64>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM tracks
+             WHERE missing = 0 AND (path = ?1 OR path LIKE ?2 ESCAPE '\\')
+             ORDER BY path",
+        )?;
+        let escaped = root
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
+        let prefix = format!("{}/%", escaped.trim_end_matches('/'));
+        let rows = stmt.query_map(params![root, prefix], |row| row.get(0))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     pub fn copy_playlist(&self, id: i64, name: &str) -> Result<i64, LibraryError> {
         let assigned = name.trim();
         if assigned.is_empty() {

@@ -122,3 +122,30 @@ fn playlist_copy_bulk_remove_and_reorder() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn track_lookup_by_path_and_root() {
+    let root = temp_root();
+    let nested = root.join("nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    for path in [root.join("a.mp3"), nested.join("b.mp3")] {
+        std::fs::write(path, []).unwrap();
+    }
+    let mut db = Database::open_in_memory().unwrap();
+    let folder = db.add_folder(&root).unwrap();
+    db.scan_folder(folder, &root).unwrap();
+
+    let a = root.join("a.mp3").to_string_lossy().to_string();
+    let b = nested.join("b.mp3").to_string_lossy().to_string();
+    assert!(db.track_id_by_path(&a).unwrap().is_some());
+    assert!(db.track_id_by_path(&b).unwrap().is_some());
+    assert!(db.track_id_by_path("/nope.mp3").unwrap().is_none());
+
+    let all = db.track_ids_under(&root.to_string_lossy()).unwrap();
+    assert_eq!(all.len(), 2);
+    let nested_only = db.track_ids_under(&nested.to_string_lossy()).unwrap();
+    assert_eq!(nested_only.len(), 1);
+
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}

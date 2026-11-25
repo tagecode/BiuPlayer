@@ -46,6 +46,7 @@ export function Library() {
   const [targetPlaylist, setTargetPlaylist] = useState("");
   const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
   const [message, setMessage] = useState("");
+  const [menu, setMenu] = useState<{ x: number; y: number; track: LibraryTrackDto_Serialize } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inFlight = useRef(new Set<number>());
   const generation = useRef(0);
@@ -207,18 +208,52 @@ export function Library() {
     }
   }
 
-  async function addToPlaylist(track: LibraryTrackDto_Serialize) {
-    if (!targetPlaylist) {
-      setMessage(t("library.noPlaylist"));
-      return;
-    }
+  async function addTrackTo(track: LibraryTrackDto_Serialize, playlistId: number) {
     try {
-      const added = await commands.playlistAddTracks(Number(targetPlaylist), [track.id]);
+      const added = await commands.playlistAddTracks(playlistId, [track.id]);
       setMessage((added ?? 0) > 0 ? t("library.added", { title: track.title }) : t("library.alreadyAdded"));
     } catch (error) {
       setMessage(formatError(error, t));
     }
   }
+
+  async function addToPlaylist(track: LibraryTrackDto_Serialize) {
+    if (!targetPlaylist) {
+      setMessage(t("library.noPlaylist"));
+      return;
+    }
+    await addTrackTo(track, Number(targetPlaylist));
+  }
+
+  async function createPlaylistWithTrack(track: LibraryTrackDto_Serialize) {
+    const name = window.prompt(t("playlists.newPlaceholder"))?.trim();
+    if (!name) return;
+    try {
+      const id = await commands.playlistCreate(name);
+      if (id != null) {
+        await addTrackTo(track, id);
+        setPlaylists(await commands.playlistList());
+      }
+    } catch (error) {
+      setMessage(formatError(error, t));
+    }
+  }
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("contextmenu", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("contextmenu", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
 
   const sortMark = (column: TrackSort) =>
     sort === column ? (descending ? " ↓" : " ↑") : "";
@@ -402,6 +437,16 @@ export function Library() {
                       className="track-row"
                       style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
                       onDoubleClick={() => playAt(index)}
+                      onContextMenu={(event) => {
+                        if (!track) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setMenu({
+                          x: Math.min(event.clientX, window.innerWidth - 240),
+                          y: Math.min(event.clientY, window.innerHeight - 280),
+                          track,
+                        });
+                      }}
                     >
                       {track ? (
                         <>
@@ -443,6 +488,40 @@ export function Library() {
           </div>
         )}
       </div>
+      {menu && (
+        <div
+          className="context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <p className="context-title">{t("library.addToPlaylist")}</p>
+          <p className="muted context-track" title={menu.track.title}>{menu.track.title}</p>
+          {playlists.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="context-item"
+              onClick={() => {
+                if (item.id != null) void addTrackTo(menu.track, item.id);
+                setMenu(null);
+              }}
+            >
+              <span>{item.name}</span>
+              <span className="muted">{item.track_count ?? 0}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="context-item"
+            onClick={() => {
+              void createPlaylistWithTrack(menu.track);
+              setMenu(null);
+            }}
+          >
+            + {t("library.newPlaylist")}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

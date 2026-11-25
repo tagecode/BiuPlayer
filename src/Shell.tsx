@@ -211,6 +211,39 @@ export function Shell() {
       }
     };
 
+    const addPathsToPlaylist = async (paths: string[], playlistId: number) => {
+      try {
+        const added = await commands.playlistAddPaths(playlistId, paths);
+        setNotice(t("shell.addedToPlaylist", { count: added ?? 0 }));
+      } catch (error) {
+        setNotice(formatError(error, t));
+      }
+    };
+
+    const handleArgs = (args: string[]) => {
+      let playlistId: number | null = null;
+      const paths: string[] = [];
+      for (let index = 0; index < args.length; index += 1) {
+        const arg = args[index];
+        if (arg === "--playlist") {
+          const value = Number(args[index + 1]);
+          if (Number.isFinite(value)) {
+            playlistId = value;
+            index += 1;
+          }
+          continue;
+        }
+        if (arg.startsWith("--")) continue;
+        paths.push(arg);
+      }
+      if (paths.length === 0) return;
+      if (playlistId != null) {
+        void addPathsToPlaylist(paths, playlistId);
+      } else {
+        void acceptPaths(paths);
+      }
+    };
+
     listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
       setDragging(false);
       void acceptPaths(event.payload.paths ?? []);
@@ -222,8 +255,15 @@ export function Shell() {
       disposed ? stop() : unlisteners.push(stop),
     );
     listen<string[]>("single-instance:open", (event) => {
-      void acceptPaths(event.payload ?? []);
+      handleArgs(event.payload ?? []);
     }).then((stop) => (disposed ? stop() : unlisteners.push(stop)));
+
+    commands
+      .startupArgs()
+      .then((args) => {
+        if (!disposed) handleArgs(args);
+      })
+      .catch(() => {});
 
     return () => {
       disposed = true;

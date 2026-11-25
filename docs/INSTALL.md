@@ -89,3 +89,11 @@ sha256sum -c SHA256SUMS.txt
 # macOS
 shasum -a 256 -c SHA256SUMS.txt
 ```
+
+## 命令行添加
+
+```bash
+BiuPlayer --playlist <playlist-id> <file-or-dir>...
+```
+
+`playlist-id` 可在播放列表详情页地址 `#/playlists/<id>` 查看。文件会先入库再加入；目录会递归扫描。重复曲目不会重复加入。

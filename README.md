@@ -97,6 +97,12 @@ fixtures/audio/m0/       7 格式音频夹具
 docs/                    产品/架构/MVP/报告
 ```
 
+## 命令行与右键
+
+- 曲目表右键：选择目标播放列表即时加入，或新建列表后加入。
+- 命令行：`BiuPlayer --playlist <playlist-id> <file-or-dir>...`，把文件/目录加入指定播放列表；已运行实例会转发参数到现有窗口。
+- 播放列表 ID 可在详情页 URL（`#/playlists/<id>`）中查看。
+
 ## 发布产物
 
 最近一次绿色矩阵：<https://github.com/tagecode/BiuPlayer/actions/runs/45320213684>

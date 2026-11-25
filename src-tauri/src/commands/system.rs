@@ -102,6 +102,12 @@ pub fn export_diagnostics(paths: State<'_, AppPathsState>) -> Result<String, Com
         .map_err(|err| CommandError::internal(err.to_string()))
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn startup_args() -> Vec<String> {
+    std::env::args().skip(1).collect()
+}
+
 fn now_ms() -> f64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

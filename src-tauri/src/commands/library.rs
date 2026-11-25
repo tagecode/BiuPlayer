@@ -475,6 +475,71 @@ pub fn playlist_reorder(
 
 #[tauri::command]
 #[specta::specta]
+pub fn playlist_add_paths(
+    id: f64,
+    paths: Vec<String>,
+    state: State<'_, LibraryState>,
+) -> Result<f64, CommandError> {
+    let mut guard = lock_db(&state);
+    let Some(database) = guard.as_mut() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    let playlist_id = id as i64;
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for raw in &paths {
+        let path = PathBuf::from(raw);
+        if !path.exists() {
+            continue;
+        }
+        let root = if path.is_dir() {
+            path
+        } else {
+            match path.parent() {
+                Some(parent) => parent.to_path_buf(),
+                None => continue,
+            }
+        };
+        let root = root.canonicalize().unwrap_or(root);
+        if !roots.iter().any(|entry| entry == &root) {
+            roots.push(root);
+        }
+    }
+    for root in &roots {
+        let folder = database
+            .add_folder(root)
+            .map_err(|err| CommandError::invalid_argument(err.to_string()))?;
+        database
+            .scan_folder(folder, root)
+            .map_err(|err| CommandError::internal(err.to_string()))?;
+    }
+    let mut track_ids: Vec<i64> = Vec::new();
+    for raw in &paths {
+        let path = PathBuf::from(raw);
+        let path = path.canonicalize().unwrap_or(path);
+        let value = path.to_string_lossy().to_string();
+        if path.is_dir() {
+            track_ids.extend(
+                database
+                    .track_ids_under(&value)
+                    .map_err(|err| CommandError::internal(err.to_string()))?,
+            );
+        } else if let Some(track_id) = database
+            .track_id_by_path(&value)
+            .map_err(|err| CommandError::internal(err.to_string()))?
+        {
+            track_ids.push(track_id);
+        }
+    }
+    track_ids.sort_unstable();
+    track_ids.dedup();
+    database
+        .add_tracks_to_playlist(playlist_id, &track_ids)
+        .map(|count| count as f64)
+        .map_err(|err| CommandError::invalid_argument(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn playlist_remove_item(
     id: f64,
     position: f64,
