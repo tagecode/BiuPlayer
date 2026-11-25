@@ -15,7 +15,7 @@ use biu_ipc::{
 };
 #[cfg(debug_assertions)]
 use specta_typescript::Typescript;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Listener, Manager};
 use tauri_specta::{collect_commands, Builder};
 
 #[cfg(debug_assertions)]
@@ -196,6 +196,10 @@ pub fn run() {
             if let Err(err) = tray::setup_tray(app.handle()) {
                 tracing::warn!(error = %err, "failed to create tray icon");
             }
+            let tray_handle = app.handle().clone();
+            app.listen("player:state", move |event| {
+                tray::sync_state(&tray_handle, event.payload());
+            });
             if let Some(window) = app.get_webview_window("main") {
                 if loaded.settings.general.start_minimized {
                     let _ = window.hide();

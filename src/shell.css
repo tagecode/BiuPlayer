@@ -59,11 +59,55 @@ body {
 }
 
 .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 9px 10px;
   border-radius: 8px;
   color: var(--muted);
   text-decoration: none;
   font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav-icon {
+  flex: 0 0 18px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-button {
+  padding: 4px 9px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.shell.collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.shell.collapsed .nav-label,
+.shell.collapsed .brand div,
+.shell.collapsed .sidebar-foot,
+.shell.collapsed .sidebar-resizer {
+  display: none;
+}
+
+.shell.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.shell.collapsed .sidebar .brand {
+  display: flex;
+  justify-content: center;
 }
 
 .nav-item:hover {
@@ -373,11 +417,16 @@ body {
     padding: 14px 8px;
   }
   .sidebar .brand div,
-  .nav-item {
-    font-size: 0;
+  .nav-label {
+    display: none;
   }
-  .nav-item::first-letter {
-    font-size: 14px;
+  .nav-item {
+    justify-content: center;
+    padding: 10px 0;
+  }
+  .sidebar .brand {
+    display: flex;
+    justify-content: center;
   }
   .sidebar-foot .muted {
     display: none;
@@ -926,4 +975,23 @@ body {
 
 .folder-row:hover {
   color: var(--accent);
+}
+
+@media (max-height: 620px) {
+  .sidebar {
+    gap: 10px;
+    padding: 12px 10px;
+  }
+
+  .nav-item {
+    padding: 6px 8px;
+  }
+
+  .titlebar {
+    flex-basis: 48px;
+  }
+
+  .content {
+    padding: 16px;
+  }
 }

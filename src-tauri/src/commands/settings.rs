@@ -39,6 +39,7 @@ pub struct SettingsDto {
     pub audio_device: String,
     pub bit_perfect: bool,
     pub sidebar_width: f64,
+    pub sidebar_collapsed: bool,
     pub library_excludes: Vec<String>,
     pub always_on_top: bool,
     pub opacity: f64,
@@ -63,6 +64,7 @@ impl From<&Settings> for SettingsDto {
             audio_device: settings.audio.device_id.clone(),
             bit_perfect: settings.audio.bit_perfect,
             sidebar_width: settings.ui.sidebar_width as f64,
+            sidebar_collapsed: settings.ui.sidebar_collapsed,
             library_excludes: settings.library.exclude_globs.clone(),
             always_on_top: settings.ui.always_on_top,
             opacity: settings.ui.opacity,
@@ -88,6 +90,7 @@ pub struct SettingsPatch {
     pub audio_device: Option<String>,
     pub bit_perfect: Option<bool>,
     pub sidebar_width: Option<f64>,
+    pub sidebar_collapsed: Option<bool>,
     pub library_excludes: Option<Vec<String>>,
     pub always_on_top: Option<bool>,
     pub opacity: Option<f64>,
@@ -179,6 +182,9 @@ pub fn settings_update(
             return Err(CommandError::invalid_argument("sidebar width out of range"));
         }
         settings.ui.sidebar_width = value.round() as u32;
+    }
+    if let Some(value) = patch.sidebar_collapsed {
+        settings.ui.sidebar_collapsed = value;
     }
     if let Some(value) = patch.library_excludes {
         let mut excludes = Vec::new();

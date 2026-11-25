@@ -70,6 +70,11 @@ export function Settings() {
       if (patch.opacity !== undefined) {
         document.documentElement.style.setProperty("--ui-opacity", String(patch.opacity));
       }
+      if (patch.sidebarCollapsed !== undefined) {
+        window.dispatchEvent(
+          new CustomEvent("biu:sidebar-collapsed", { detail: Boolean(patch.sidebarCollapsed) }),
+        );
+      }
     } catch (error) {
       setMessage(formatError(error, t));
     }
@@ -238,6 +243,14 @@ export function Settings() {
               <option value="comfortable">{t("settings.density.comfortable")}</option>
               <option value="compact">{t("settings.density.compact")}</option>
             </select>
+          </label>
+          <label className="setting-row">
+            <span>{t("settings.sidebarCollapsed")}</span>
+            <input
+              type="checkbox"
+              checked={settings.sidebarCollapsed}
+              onChange={(event) => update({ sidebarCollapsed: event.target.checked })}
+            />
           </label>
           <label className="setting-row">
             <span>{t("settings.reduceMotion")}</span>

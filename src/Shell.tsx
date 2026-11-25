@@ -10,17 +10,17 @@ import {
 } from "./bindings";
 import { useI18n, type Lang, type MessageKey } from "./i18n";
 
-const nav: { to: string; labelKey: MessageKey; end?: boolean }[] = [
-  { to: "/", labelKey: "nav.nowPlaying", end: true },
-  { to: "/library", labelKey: "nav.library" },
-  { to: "/playlists", labelKey: "nav.playlists" },
-  { to: "/search", labelKey: "nav.search" },
-  { to: "/equalizer", labelKey: "nav.equalizer" },
-  { to: "/skins", labelKey: "nav.skins" },
-  { to: "/plugins", labelKey: "nav.plugins" },
-  { to: "/tools", labelKey: "nav.tools" },
-  { to: "/settings/general", labelKey: "nav.settings" },
-  { to: "/m0", labelKey: "nav.m0" },
+const nav: { to: string; labelKey: MessageKey; icon: string; end?: boolean }[] = [
+  { to: "/", labelKey: "nav.nowPlaying", icon: "▶", end: true },
+  { to: "/library", labelKey: "nav.library", icon: "♪" },
+  { to: "/playlists", labelKey: "nav.playlists", icon: "≡" },
+  { to: "/search", labelKey: "nav.search", icon: "⌕" },
+  { to: "/equalizer", labelKey: "nav.equalizer", icon: "♬" },
+  { to: "/skins", labelKey: "nav.skins", icon: "◈" },
+  { to: "/plugins", labelKey: "nav.plugins", icon: "⬡" },
+  { to: "/tools", labelKey: "nav.tools", icon: "⚒" },
+  { to: "/settings/general", labelKey: "nav.settings", icon: "⚙" },
+  { to: "/m0", labelKey: "nav.m0", icon: "◎" },
 ];
 
 const modes = ["sequential", "list_loop", "single_loop", "shuffle"] as const;
@@ -71,6 +71,7 @@ export function Shell() {
   const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [collapsed, setCollapsed] = useState(false);
   const sidebarWidthRef = useRef(220);
 
   useEffect(() => {
@@ -80,12 +81,28 @@ export function Shell() {
         const width = Math.min(400, Math.max(160, settings.sidebarWidth || 220));
         sidebarWidthRef.current = width;
         setSidebarWidth(width);
+        setCollapsed(Boolean(settings.sidebarCollapsed));
         const opacity = Math.min(1, Math.max(0.7, settings.opacity ?? 1));
         document.documentElement.style.setProperty("--ui-opacity", String(opacity));
         void getCurrentWindow().setAlwaysOnTop(Boolean(settings.alwaysOnTop)).catch(() => {});
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const sync = (event: Event) => setCollapsed(Boolean((event as CustomEvent).detail));
+    window.addEventListener("biu:sidebar-collapsed", sync);
+    return () => window.removeEventListener("biu:sidebar-collapsed", sync);
+  }, []);
+
+  function toggleSidebar() {
+    const next = !collapsed;
+    setCollapsed(next);
+    void commands.settingsUpdate({ sidebarCollapsed: next }).catch((error) => {
+      setCollapsed(!next);
+      setNotice(formatError(error, t));
+    });
+  }
 
   function startSidebarResize(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -293,7 +310,10 @@ export function Shell() {
   const duration = player?.duration_ms ?? 0;
 
   return (
-    <div className="shell" style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}>
+    <div
+      className={collapsed ? "shell collapsed" : "shell"}
+      style={{ "--sidebar-width": collapsed ? "64px" : `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">Biu</span>
@@ -310,7 +330,10 @@ export function Shell() {
               end={item.end}
               className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
             >
-              {t(item.labelKey)}
+              <span className="nav-icon" aria-hidden>
+                {item.icon}
+              </span>
+              <span className="nav-label">{t(item.labelKey)}</span>
             </NavLink>
           ))}
         </nav>
@@ -341,7 +364,15 @@ export function Shell() {
 
       <div className="main">
         <header className="titlebar">
-          <div>
+          <div className="titlebar-left">
+            <button
+              className="ghost icon-button"
+              onClick={toggleSidebar}
+              aria-label={t("shell.toggleSidebar")}
+              title={t("shell.toggleSidebar")}
+            >
+              ☰
+            </button>
             <span className="muted">{t("shell.offline")}</span>
           </div>
           <div className="titlebar-actions">

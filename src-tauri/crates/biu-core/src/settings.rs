@@ -167,6 +167,7 @@ impl Default for LibrarySettings {
 #[serde(default, rename_all = "camelCase")]
 pub struct UiSettings {
     pub sidebar_width: u32,
+    pub sidebar_collapsed: bool,
     pub list_density: String,
     pub reduce_motion: bool,
     #[serde(default)]
@@ -183,6 +184,7 @@ impl Default for UiSettings {
     fn default() -> Self {
         Self {
             sidebar_width: 220,
+            sidebar_collapsed: false,
             list_density: "comfortable".into(),
             reduce_motion: false,
             always_on_top: false,

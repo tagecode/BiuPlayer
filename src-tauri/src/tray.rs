@@ -1,8 +1,13 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
+
+pub struct TrayState {
+    tray: TrayIcon,
+    play: MenuItem<tauri::Wry>,
+}
 
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "显示 / 隐藏", true, None::<&str>)?;
@@ -38,8 +43,36 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
     }
-    builder.build(app)?;
+    let tray = builder.build(app)?;
+    app.manage(TrayState { tray, play });
     Ok(())
+}
+
+/// 把播放状态同步到托盘：tooltip 显示当前曲目，播放菜单显示“播放/暂停”。
+pub fn sync_state(app: &AppHandle, payload: &str) {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return;
+    };
+    let state = value.get("state").and_then(|v| v.as_str()).unwrap_or("");
+    let title = value.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let artist = value.get("artist").and_then(|v| v.as_str()).unwrap_or("");
+    let tooltip = if title.is_empty() {
+        "博音 BiuPlayer".to_string()
+    } else if artist.is_empty() {
+        format!("{title} - 博音 BiuPlayer")
+    } else {
+        format!("{title} - {artist}")
+    };
+
+    let Some(tray_state) = app.try_state::<TrayState>() else {
+        return;
+    };
+    let _ = tray_state.tray.set_tooltip(Some(tooltip.as_str()));
+    let _ = tray_state.play.set_text(if state == "playing" {
+        "暂停"
+    } else {
+        "播放"
+    });
 }
 
 fn toggle_window(app: &AppHandle) {
