@@ -149,3 +149,24 @@ fn track_lookup_by_path_and_root() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn playlists_keep_manual_order() {
+    let db = Database::open_in_memory().unwrap();
+    let a = db.create_playlist("Alpha").unwrap();
+    let b = db.create_playlist("Beta").unwrap();
+    let c = db.create_playlist("Gamma").unwrap();
+    let names = |db: &Database| -> Vec<String> {
+        db.list_playlists()
+            .unwrap()
+            .into_iter()
+            .map(|item| item.name)
+            .collect()
+    };
+    assert_eq!(names(&db), vec!["Alpha", "Beta", "Gamma"]);
+
+    db.reorder_playlists(&[c, a, b]).unwrap();
+    assert_eq!(names(&db), vec!["Gamma", "Alpha", "Beta"]);
+    assert!(db.reorder_playlists(&[a, b]).is_err());
+    assert!(db.reorder_playlists(&[a, a, b, c]).is_err());
+}

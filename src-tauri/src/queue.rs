@@ -139,6 +139,29 @@ impl AudioQueue {
         Some(removed)
     }
 
+    /// Move an item inside the queue, keeping the current track selected.
+    pub fn move_item(&mut self, from: usize, to: usize) -> bool {
+        if from >= self.items.len() || to >= self.items.len() || from == to {
+            return false;
+        }
+        let item = self.items.remove(from);
+        self.items.insert(to, item);
+        if let Some(current) = self.index {
+            self.index = Some(if current == from {
+                to
+            } else if from < current && to >= current {
+                current - 1
+            } else if from > current && to <= current {
+                current + 1
+            } else {
+                current
+            });
+        }
+        self.rebuild_shuffle();
+        self.save();
+        true
+    }
+
     pub fn clear(&mut self) {
         self.items.clear();
         self.index = None;
@@ -273,6 +296,9 @@ fn load_session(path: &Path) -> Option<Session> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
 
     fn item(title: &str) -> QueueItemDto {
         QueueItemDto {
@@ -286,11 +312,9 @@ mod tests {
 
     fn queue() -> AudioQueue {
         let path = std::env::temp_dir().join(format!(
-            "biu-queue-test-{}.json",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            "biu-queue-test-{}-{}.json",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         AudioQueue::new(path)
     }
@@ -326,6 +350,22 @@ mod tests {
         queue.remove(1);
         assert_eq!(queue.index(), Some(1));
         assert_eq!(queue.current().unwrap().title, "c");
+    }
+
+    #[test]
+    fn moving_items_keeps_current_track() {
+        let mut queue = queue();
+        queue.replace(
+            vec![item("a"), item("b"), item("c")],
+            1,
+            PlayMode::Sequential,
+        );
+        assert!(queue.move_item(0, 2));
+        assert_eq!(queue.current().unwrap().title, "b");
+        assert_eq!(queue.index(), Some(0));
+        assert_eq!(queue.items()[0].title, "b");
+        assert_eq!(queue.items()[2].title, "a");
+        assert!(!queue.move_item(9, 0));
     }
 
     #[test]

@@ -419,6 +419,20 @@ pub fn player_queue_remove(
 
 #[tauri::command]
 #[specta::specta]
+pub fn player_queue_move(
+    from: f64,
+    to: f64,
+    queue_state: State<'_, AudioQueueState>,
+) -> Result<QueueSnapshotDto, CommandError> {
+    let mut queue = queue_lock(&queue_state);
+    if !queue.move_item(from.max(0.0) as usize, to.max(0.0) as usize) {
+        return Err(CommandError::invalid_argument("queue index out of range"));
+    }
+    Ok(queue.snapshot())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn player_queue_clear(
     player: State<'_, AudioPlayerState>,
     queue_state: State<'_, AudioQueueState>,

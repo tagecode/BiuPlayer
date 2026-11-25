@@ -290,6 +290,7 @@ body {
 }
 
 .queue-list li {
+  cursor: grab;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -545,6 +546,8 @@ body {
   background: var(--panel);
 }
 .playlist-row:hover { border-color: var(--accent); }
+.playlist-row { cursor: grab; }
+.playlist-row.dragging, .queue-list li.dragging { opacity: 0.45; }
 .playlist-link { display: flex; flex-direction: column; gap: 2px; color: var(--text); text-decoration: none; }
 .row-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 .link-button {

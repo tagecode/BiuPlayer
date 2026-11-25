@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -463,6 +463,9 @@ impl Database {
         if current < 2 {
             self.apply_v2()?;
         }
+        if current < 3 {
+            self.apply_v3()?;
+        }
         Ok(())
     }
 
@@ -596,6 +599,20 @@ impl Database {
         )?;
         tx.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'))",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn apply_v3(&mut self) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "ALTER TABLE playlists ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+             UPDATE playlists SET sort_order = id;",
+        )?;
+        tx.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'))",
             [],
         )?;
         tx.commit()?;
@@ -1119,7 +1136,7 @@ impl Database {
              FROM playlists p
              LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
              GROUP BY p.id
-             ORDER BY p.name COLLATE NOCASE, p.id",
+             ORDER BY p.sort_order, p.id",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok(PlaylistSummary {
@@ -1143,8 +1160,9 @@ impl Database {
             ));
         }
         self.conn.execute(
-            "INSERT INTO playlists (name, created_at, updated_at)
-             VALUES (?1, datetime('now'), datetime('now'))",
+            "INSERT INTO playlists (name, created_at, updated_at, sort_order)
+             VALUES (?1, datetime('now'), datetime('now'),
+                     (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM playlists))",
             params![name],
         )?;
         Ok(self.conn.last_insert_rowid())
@@ -1164,6 +1182,31 @@ impl Database {
         if changed == 0 {
             return Err(LibraryError::InvalidArgument("playlist not found".into()));
         }
+        Ok(())
+    }
+
+    /// Persist a full manual ordering. The id set must match exactly once.
+    pub fn reorder_playlists(&self, ids: &[i64]) -> Result<(), LibraryError> {
+        let mut stmt = self.conn.prepare("SELECT id FROM playlists")?;
+        let mut existing: Vec<i64> = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        existing.sort_unstable();
+        let mut wanted = ids.to_vec();
+        wanted.sort_unstable();
+        if existing != wanted {
+            return Err(LibraryError::InvalidArgument(
+                "playlist order must contain every playlist exactly once".into(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        for (position, id) in ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE playlists SET sort_order = ?1, updated_at = datetime('now') WHERE id = ?2",
+                params![position as i64, id],
+            )?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
@@ -1326,8 +1369,9 @@ impl Database {
         }
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
-            "INSERT INTO playlists (name, created_at, updated_at)
-             VALUES (?1, datetime('now'), datetime('now'))",
+            "INSERT INTO playlists (name, created_at, updated_at, sort_order)
+             VALUES (?1, datetime('now'), datetime('now'),
+                     (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM playlists))",
             params![assigned],
         )?;
         let new_id = tx.last_insert_rowid();

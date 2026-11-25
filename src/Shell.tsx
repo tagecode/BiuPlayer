@@ -67,6 +67,7 @@ export function Shell() {
   const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
   const [queue, setQueue] = useState<QueueSnapshotDto_Serialize | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [queueDrag, setQueueDrag] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
@@ -176,11 +177,25 @@ export function Shell() {
     setQueue(await commands.playerQueue());
   }
 
+  async function moveQueueItem(from: number, to: number) {
+    if (from === to) return;
+    try {
+      setQueue(await commands.playerQueueMove(from, to));
+    } catch (error) {
+      setNotice(formatError(error, t));
+    }
+  }
+
   useEffect(() => {
     let disposed = false;
     const unlisteners: Array<() => void> = [];
 
     const acceptPaths = async (paths: string[]) => {
+      const playlistMatch = /^#\/playlists\/(\d+)$/.exec(window.location.hash);
+      if (playlistMatch) {
+        await addPathsToPlaylist(paths, Number(playlistMatch[1]));
+        return;
+      }
       const audio = paths.filter(isAudioPath);
       const folders = paths.filter((path) => !isAudioPath(path));
       if (audio.length > 0) {
@@ -356,7 +371,19 @@ export function Shell() {
             {queue && queue.items.length > 0 ? (
               <ol className="queue-list">
                 {queue.items.map((item, index) => (
-                  <li key={`${item.path}-${index}`} className={index === queue.index ? "current" : ""}>
+                  <li
+                    key={`${item.path}-${index}`}
+                    className={`${index === queue.index ? "current" : ""}${queueDrag === index ? " dragging" : ""}`}
+                    draggable
+                    onDragStart={() => setQueueDrag(index)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragEnd={() => setQueueDrag(null)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (queueDrag != null) void moveQueueItem(queueDrag, index);
+                      setQueueDrag(null);
+                    }}
+                  >
                     <button
                       type="button"
                       className="queue-track"

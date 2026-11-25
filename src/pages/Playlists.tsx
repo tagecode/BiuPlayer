@@ -9,6 +9,7 @@ export function Playlists() {
   const [items, setItems] = useState<PlaylistDto[]>([]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setItems(await commands.playlistList());
@@ -46,6 +47,20 @@ export function Playlists() {
     }
   }
 
+  async function move(from: number, to: number) {
+    if (from === to) return;
+    const next = [...items];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setItems(next);
+    try {
+      await commands.playlistReorderAll(next.map((item) => item.id ?? 0));
+    } catch (error) {
+      setMessage(formatError(error, t));
+      await refresh();
+    }
+  }
+
   async function remove(item: PlaylistDto) {
     if (!window.confirm(t("playlists.deleteConfirm", { name: item.name }))) return;
     try {
@@ -80,6 +95,7 @@ export function Playlists() {
       </div>
 
       {message && <p className="notice">{message}</p>}
+      {items.length > 1 && <p className="muted">{t("playlists.reorderHint")}</p>}
 
       {items.length === 0 ? (
         <div className="empty-card">
@@ -89,7 +105,19 @@ export function Playlists() {
       ) : (
         <ul className="playlist-list">
           {items.map((item) => (
-            <li key={item.id} className="playlist-row">
+            <li
+              key={item.id}
+              className={`playlist-row${dragIndex === items.indexOf(item) ? " dragging" : ""}`}
+              draggable
+              onDragStart={() => setDragIndex(items.indexOf(item))}
+              onDragOver={(event) => event.preventDefault()}
+              onDragEnd={() => setDragIndex(null)}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragIndex != null) void move(dragIndex, items.indexOf(item));
+                setDragIndex(null);
+              }}
+            >
               <Link className="playlist-link" to={`/playlists/${item.id}`}>
                 <strong>{item.name}</strong>
                 <span className="muted">{item.track_count} {t("common.tracksSuffix")}</span>

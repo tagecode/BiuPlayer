@@ -383,6 +383,22 @@ pub fn playlist_delete(id: f64, state: State<'_, LibraryState>) -> Result<(), Co
 
 #[tauri::command]
 #[specta::specta]
+pub fn playlist_reorder_all(
+    ids: Vec<f64>,
+    state: State<'_, LibraryState>,
+) -> Result<(), CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    let ids: Vec<i64> = ids.into_iter().map(|id| id as i64).collect();
+    database
+        .reorder_playlists(&ids)
+        .map_err(|err| CommandError::invalid_argument(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn playlist_items(
     id: f64,
     state: State<'_, LibraryState>,
