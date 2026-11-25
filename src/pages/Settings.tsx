@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { applyFrameless, applyOpacity } from "../window";
@@ -9,12 +10,25 @@ import {
   type SettingsDto,
   type SettingsPatch_Deserialize,
 } from "../bindings";
-import { useI18n, type Lang } from "../i18n";
+import { useI18n, type Lang, type MessageKey } from "../i18n";
 import { applyTheme } from "../theme";
 import { formatError } from "../errors";
 
+const sections: { id: string; label: MessageKey }[] = [
+  { id: "general", label: "settings.section.general" },
+  { id: "playback", label: "settings.section.playback" },
+  { id: "audio", label: "settings.section.audio" },
+  { id: "lyrics", label: "settings.section.lyrics" },
+  { id: "interface", label: "settings.section.interface" },
+  { id: "library", label: "settings.section.library" },
+  { id: "data", label: "settings.section.data" },
+  { id: "about", label: "settings.section.about" },
+];
+
 export function Settings() {
   const { t, lang, setLang } = useI18n();
+  const { section = "general" } = useParams();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<SettingsDto | null>(null);
   const [message, setMessage] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -39,6 +53,12 @@ export function Settings() {
       })
       .catch((error) => setMessage(formatError(error, t)));
   }, []);
+
+  useEffect(() => {
+    if (!settings) return;
+    const target = document.getElementById(`settings-${section}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [section, settings]);
 
   useEffect(() => {
     if (settings?.theme !== "system") return;
@@ -108,8 +128,21 @@ export function Settings() {
       </header>
       {message && <p className="notice">{message}</p>}
 
-      <div className="settings-grid">
-        <div className="settings-card">
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label={t("nav.settings")}>
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={section === item.id ? "active" : undefined}
+              onClick={() => navigate(`/settings/${item.id}`)}
+            >
+              {t(item.label)}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-grid">
+        <div className="settings-card" id="settings-general">
           <h3>{t("settings.section.general")}</h3>
           <label className="setting-row">
             <span>{t("settings.language")}</span>
@@ -144,30 +177,7 @@ export function Settings() {
           </label>
         </div>
 
-        <div className="settings-card">
-          <h3>{t("settings.section.audio")}</h3>
-          <label className="setting-row">
-            <span>{t("settings.outputDevice")}</span>
-            <select
-              value={settings.audioDevice || "default"}
-              onChange={(event) => selectDevice(event.target.value)}
-            >
-              <option value="default">{t("settings.defaultDevice")}</option>
-              {devices.map((device) => (
-                <option key={device.name} value={device.name}>
-                  {device.name}
-                  {device.is_default ? t("settings.defaultTag") : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="muted">
-            {t("settings.deviceHint")}
-          </p>
-          <p className="muted">{t("settings.bitPerfectHint")}</p>
-        </div>
-
-        <div className="settings-card">
+        <div className="settings-card" id="settings-playback">
           <h3>{t("settings.section.playback")}</h3>
           <label className="setting-row">
             <span>{t("settings.resumeOnStart")}</span>
@@ -207,7 +217,30 @@ export function Settings() {
           </label>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card" id="settings-audio">
+          <h3>{t("settings.section.audio")}</h3>
+          <label className="setting-row">
+            <span>{t("settings.outputDevice")}</span>
+            <select
+              value={settings.audioDevice || "default"}
+              onChange={(event) => selectDevice(event.target.value)}
+            >
+              <option value="default">{t("settings.defaultDevice")}</option>
+              {devices.map((device) => (
+                <option key={device.name} value={device.name}>
+                  {device.name}
+                  {device.is_default ? t("settings.defaultTag") : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">
+            {t("settings.deviceHint")}
+          </p>
+          <p className="muted">{t("settings.bitPerfectHint")}</p>
+        </div>
+
+        <div className="settings-card" id="settings-lyrics">
           <h3>{t("settings.section.lyrics")}</h3>
           <label className="setting-row">
             <span>{t("settings.lyricsOffset")}</span>
@@ -240,7 +273,7 @@ export function Settings() {
           </label>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card" id="settings-interface">
           <h3>{t("settings.section.interface")}</h3>
           <label className="setting-row">
             <span>{t("settings.density")}</span>
@@ -289,7 +322,28 @@ export function Settings() {
           </label>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card" id="settings-library">
+          <h3>{t("settings.section.library")}</h3>
+          <p className="muted">{t("settings.libraryExcludeHint")}</p>
+          <textarea
+            className="settings-textarea"
+            rows={4}
+            value={excludeDraft}
+            placeholder={"**/@eaDir/**\n/path/to/skip"}
+            onChange={(event) => setExcludeDraft(event.target.value)}
+            onBlur={() => update({ libraryExcludes: excludeDraft.split(/\r?\n/) })}
+          />
+          <p className="muted">{t("settings.libraryExcludeNote")}</p>
+        </div>
+
+        <div className="settings-card" id="settings-data">
+          <h3>{t("settings.section.data")}</h3>
+          <p className="muted">
+            {t("settings.dataNote")}
+          </p>
+          <p className="muted mono">{t("settings.schema")}{settings.schemaVersion}</p>
+        </div>
+        <div className="settings-card" id="settings-about">
           <h3>{t("settings.section.about")}</h3>
           <p>
             {t("app.name")} BiuPlayer {appInfo?.version ?? ""}
@@ -324,26 +378,6 @@ export function Settings() {
           </div>
         </div>
 
-        <div className="settings-card">
-          <h3>{t("settings.section.library")}</h3>
-          <p className="muted">{t("settings.libraryExcludeHint")}</p>
-          <textarea
-            className="settings-textarea"
-            rows={4}
-            value={excludeDraft}
-            placeholder={"**/@eaDir/**\n/path/to/skip"}
-            onChange={(event) => setExcludeDraft(event.target.value)}
-            onBlur={() => update({ libraryExcludes: excludeDraft.split(/\r?\n/) })}
-          />
-          <p className="muted">{t("settings.libraryExcludeNote")}</p>
-        </div>
-
-        <div className="settings-card">
-          <h3>{t("settings.section.data")}</h3>
-          <p className="muted">
-            {t("settings.dataNote")}
-          </p>
-          <p className="muted mono">{t("settings.schema")}{settings.schemaVersion}</p>
         </div>
       </div>
     </section>
