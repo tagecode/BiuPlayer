@@ -6,6 +6,7 @@ import {
   type PlaylistDto,
   type QueueItemDto_Serialize,
 } from "../bindings";
+import { LibraryNav } from "../components/LibraryNav";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
@@ -265,6 +266,7 @@ export function Library() {
         <h2>{t("nav.library")}</h2>
         <p>{t("library.count", { count: count.toLocaleString() })}</p>
       </div>
+      <LibraryNav />
 
       <div className="card">
         <div className="card-head">

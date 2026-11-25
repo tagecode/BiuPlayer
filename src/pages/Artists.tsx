@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type ArtistDto } from "../bindings";
+import { LibraryNav } from "../components/LibraryNav";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
@@ -26,6 +27,7 @@ export function Artists() {
         </div>
         <span className="pill">{artists.length} {t("common.artistsSuffix")}</span>
       </header>
+      <LibraryNav />
       {message && <p className="notice">{message}</p>}
       {artists.length === 0 ? (
         <div className="empty-card">

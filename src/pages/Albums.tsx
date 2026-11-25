@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type AlbumDto } from "../bindings";
 import { AlbumCover } from "../components/AlbumCover";
+import { LibraryNav } from "../components/LibraryNav";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
@@ -27,6 +28,7 @@ export function Albums() {
         </div>
         <span className="pill">{albums.length} {t("common.albumsSuffix")}</span>
       </header>
+      <LibraryNav />
       {message && <p className="notice">{message}</p>}
       {albums.length === 0 ? (
         <div className="empty-card">

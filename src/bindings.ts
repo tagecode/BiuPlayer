@@ -45,6 +45,12 @@ export const commands = {
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
+	libraryGenres: (options?: InvokeOptions) => __TAURI_INVOKE<GenreDto[]>("library_genres", undefined, options),
+	libraryGenreTracks: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_genre_tracks", { name }, options),
+	libraryYears: (options?: InvokeOptions) => __TAURI_INVOKE<YearDto[]>("library_years", undefined, options),
+	libraryYearTracks: (year: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_year_tracks", { year }, options),
+	libraryFolders: (options?: InvokeOptions) => __TAURI_INVOKE<FolderDto[]>("library_folders", undefined, options),
+	libraryFolderTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_folder_tracks", { id }, options),
 	lyricsLoad: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LyricsDto_Serialize | null>("lyrics_load", { path }, options),
 	desktopLyricsToggle: (options?: InvokeOptions) => __TAURI_INVOKE<boolean>("desktop_lyrics_toggle", undefined, options),
 	settingsGet: (options?: InvokeOptions) => __TAURI_INVOKE<SettingsDto>("settings_get", undefined, options),
@@ -123,6 +129,17 @@ export type AudioDevice = {
 export type CommandError = {
 	code: string,
 	message: string,
+};
+
+export type FolderDto = {
+	id: number | null,
+	path: string,
+	track_count: number | null,
+};
+
+export type GenreDto = {
+	name: string,
+	track_count: number | null,
 };
 
 export type LibraryScanDto = {
@@ -385,4 +402,9 @@ export type SettingsPatch_Serialize = {
 export type TestTick = {
 	seq: number,
 	sent_at_ms: number | null,
+};
+
+export type YearDto = {
+	year: number | null,
+	track_count: number | null,
 };

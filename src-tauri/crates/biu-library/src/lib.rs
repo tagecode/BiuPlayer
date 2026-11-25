@@ -191,7 +191,7 @@ fn fts_query(input: &str) -> String {
                 .chars()
                 .filter(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '-')
                 .collect();
-            (!cleaned.is_empty()).then(|| format!("{cleaned}*"))
+            (!cleaned.is_empty()).then(|| format!("\"{cleaned}\"*"))
         })
         .collect();
     terms.join(" AND ")
@@ -417,6 +417,10 @@ impl Database {
 
     pub fn connection(&self) -> &Connection {
         &self.conn
+    }
+
+    pub fn connection_mut(&mut self) -> &mut Connection {
+        &mut self.conn
     }
 
     pub fn open_in_memory() -> Result<Self, LibraryError> {
@@ -1007,6 +1011,86 @@ impl Database {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params![limit as i64, offset as i64], |row| {
+            Ok(TrackListItem {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_genres(&self) -> Result<Vec<(String, i64)>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT TRIM(genre), COUNT(*) FROM tracks
+             WHERE missing = 0 AND genre IS NOT NULL AND TRIM(genre) <> ''
+             GROUP BY TRIM(genre) ORDER BY TRIM(genre) COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_years(&self) -> Result<Vec<(i64, i64)>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT year, COUNT(*) FROM tracks
+             WHERE missing = 0 AND year IS NOT NULL AND year BETWEEN 1 AND 9999
+             GROUP BY year ORDER BY year DESC",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_folders(&self) -> Result<Vec<(i64, String, i64)>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT f.id, f.path, COUNT(t.id)
+             FROM folders f LEFT JOIN tracks t ON t.folder_id = f.id AND t.missing = 0
+             GROUP BY f.id ORDER BY f.path COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn browse_tracks(
+        &self,
+        filter: &str,
+        value: &str,
+    ) -> Result<Vec<TrackListItem>, LibraryError> {
+        let condition = match filter {
+            "genre" => "TRIM(t.genre) = ?1",
+            "year" => "t.year = CAST(?1 AS INTEGER)",
+            "folder" => "t.folder_id = CAST(?1 AS INTEGER)",
+            _ => return Err(LibraryError::InvalidArgument("unknown filter".into())),
+        };
+        let sql = format!(
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE t.missing = 0 AND {condition}
+             ORDER BY t.title COLLATE NOCASE, t.id"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![value], |row| {
             Ok(TrackListItem {
                 id: row.get(0)?,
                 title: row.get(1)?,

@@ -6,6 +6,7 @@ import { AlbumDetail } from "./pages/AlbumDetail";
 import { Albums } from "./pages/Albums";
 import { ArtistDetail } from "./pages/ArtistDetail";
 import { Artists } from "./pages/Artists";
+import { Folders, FolderDetail, Genres, GenreDetail, Years, YearDetail } from "./pages/Browse";
 import { NowPlaying } from "./pages/NowPlaying";
 import { DesktopLyrics } from "./pages/DesktopLyrics";
 import { Settings } from "./pages/Settings";
@@ -30,7 +31,12 @@ export const router = createHashRouter([
       { path: "/library/albums/:id", element: <AlbumDetail /> },
       { path: "/library/artists", element: <Artists /> },
       { path: "/library/artists/:id", element: <ArtistDetail /> },
-      { path: "/library/genres", element: page("P-06", "pages.genres.title", "pages.genres.desc") },
+      { path: "/library/genres", element: <Genres /> },
+      { path: "/library/genres/:name", element: <GenreDetail /> },
+      { path: "/library/years", element: <Years /> },
+      { path: "/library/years/:year", element: <YearDetail /> },
+      { path: "/library/folders", element: <Folders /> },
+      { path: "/library/folders/:id", element: <FolderDetail /> },
       { path: "/playlists", element: <Playlists /> },
       { path: "/playlists/:id", element: <PlaylistDetail /> },
       { path: "/search", element: page("P-08", "pages.search.title", "pages.search.desc") },

@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scan_ms = scan_start.elapsed().as_millis();
 
     let query_start = Instant::now();
-    let hits = db.search("track AND 05000", 20)?;
+    let hits = db.search("track 05000", 20)?;
     let query_ms = query_start.elapsed().as_millis();
 
     println!(
