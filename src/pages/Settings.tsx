@@ -18,6 +18,7 @@ export function Settings() {
   const [message, setMessage] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
+  const [excludeDraft, setExcludeDraft] = useState("");
 
   useEffect(() => {
     commands.appInfo().then(setAppInfo).catch(() => {});
@@ -29,6 +30,7 @@ export function Settings() {
       .settingsGet()
       .then((value) => {
         setSettings(value);
+        setExcludeDraft((value.libraryExcludes ?? []).join("\n"));
         applyTheme(value.theme);
         document.documentElement.style.setProperty("--ui-opacity", String(value.opacity ?? 1));
         void getCurrentWindow().setAlwaysOnTop(Boolean(value.alwaysOnTop)).catch(() => {});
@@ -299,6 +301,20 @@ export function Settings() {
               {t("settings.openLicense")}
             </button>
           </div>
+        </div>
+
+        <div className="settings-card">
+          <h3>{t("settings.section.library")}</h3>
+          <p className="muted">{t("settings.libraryExcludeHint")}</p>
+          <textarea
+            className="settings-textarea"
+            rows={4}
+            value={excludeDraft}
+            placeholder={"**/@eaDir/**\n/path/to/skip"}
+            onChange={(event) => setExcludeDraft(event.target.value)}
+            onBlur={() => update({ libraryExcludes: excludeDraft.split(/\r?\n/) })}
+          />
+          <p className="muted">{t("settings.libraryExcludeNote")}</p>
         </div>
 
         <div className="settings-card">

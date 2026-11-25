@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   commands,
   type FolderDto,
@@ -199,8 +199,19 @@ export function Folders() {
 export function FolderDetail() {
   const { t } = useI18n();
   const { id = "0" } = useParams();
+  const navigate = useNavigate();
   const load = useCallback(() => commands.libraryFolderTracks(Number(id)), [id]);
   const { tracks, message, play } = useTracks(load);
+
+  async function removeFolder() {
+    if (!window.confirm(t("folders.removeConfirm"))) return;
+    try {
+      await commands.libraryRemoveFolder(Number(id));
+      navigate("/library/folders");
+    } catch (error) {
+      window.alert(formatError(error, t));
+    }
+  }
 
   return (
     <section className="page">
@@ -208,6 +219,11 @@ export function FolderDetail() {
       <p className="breadcrumb">
         <Link to="/library/folders">{t("pages.folders.title")}</Link> / #{id}
       </p>
+      <div className="page-actions">
+        <button type="button" className="ghost danger" onClick={removeFolder}>
+          {t("folders.remove")}
+        </button>
+      </div>
       {message && <p className="notice">{message}</p>}
       <TrackTable tracks={tracks} onPlay={play} />
     </section>

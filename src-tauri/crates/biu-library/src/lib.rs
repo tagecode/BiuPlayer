@@ -394,6 +394,48 @@ fn prepare_existing(path: &Path) -> Result<(), LibraryError> {
     Ok(())
 }
 
+/// Hidden entries (leading `.`) are always skipped. Patterns are either
+/// absolute path prefixes or directory names; wildcard wrappers such as
+/// `**/name/**` are stripped before matching.
+fn is_excluded_path(path: &Path, root: &Path, excludes: &[String]) -> bool {
+    let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
+    if name.starts_with('.') {
+        return true;
+    }
+    let relative = path.strip_prefix(root).ok();
+    for raw in excludes {
+        let pattern = raw.trim().trim_matches('/');
+        if pattern.is_empty() {
+            continue;
+        }
+        if Path::new(pattern).is_absolute() {
+            if path.starts_with(pattern) {
+                return true;
+            }
+            continue;
+        }
+        let cleaned = pattern
+            .trim_start_matches("**/")
+            .trim_end_matches("/**")
+            .trim_matches('*')
+            .trim_matches('/');
+        if cleaned.is_empty() {
+            continue;
+        }
+        if let Some(relative) = relative {
+            if relative.components().any(|component| {
+                component
+                    .as_os_str()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(cleaned)
+            }) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 impl Database {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, LibraryError> {
         let path = path.as_ref();
@@ -691,6 +733,20 @@ impl Database {
         control: &ScanControl,
         progress: &ScanProgress,
     ) -> Result<ScanOutcome, LibraryError> {
+        self.scan_folder_controlled_filtered(folder_id, root, control, progress, &[])
+    }
+
+    /// Same as `scan_folder_controlled`, but skips hidden entries and paths
+    /// matching `excludes` (absolute prefixes or directory-name patterns such
+    /// as `**/@eaDir/**`).
+    pub fn scan_folder_controlled_filtered(
+        &mut self,
+        folder_id: i64,
+        root: &Path,
+        control: &ScanControl,
+        progress: &ScanProgress,
+        excludes: &[String],
+    ) -> Result<ScanOutcome, LibraryError> {
         let started = Instant::now();
         progress.reset();
         let mut report = ScanReport {
@@ -708,7 +764,13 @@ impl Database {
         let mut artist_cache: HashMap<String, i64> = HashMap::new();
         let mut album_cache: HashMap<(String, Option<i64>), i64> = HashMap::new();
 
-        for entry in WalkDir::new(root).follow_links(false).into_iter() {
+        let filtered = WalkDir::new(root)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|entry| {
+                entry.depth() == 0 || !is_excluded_path(entry.path(), root, excludes)
+            });
+        for entry in filtered {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(_) => {
@@ -1123,6 +1185,13 @@ impl Database {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    pub fn remove_folder(&self, id: i64) -> Result<bool, LibraryError> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM folders WHERE id = ?1", params![id])?
+            > 0)
     }
 
     pub fn track_count(&self) -> Result<u64, LibraryError> {

@@ -34,6 +34,7 @@ export const commands = {
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
 	libraryAddFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanDto>("library_add_folder", { path }, options),
 	libraryScanStart: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_start", { path }, options),
+	libraryRemoveFolder: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("library_remove_folder", { id }, options),
 	libraryScanStatus: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_status", undefined, options),
 	libraryScanPause: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_pause", undefined, options),
 	libraryScanResume: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_resume", undefined, options),
@@ -355,6 +356,7 @@ export type SettingsDto = {
 	audioDevice: string,
 	bitPerfect: boolean,
 	sidebarWidth: number | null,
+	libraryExcludes: string[],
 	alwaysOnTop: boolean,
 	opacity: number | null,
 };
@@ -377,6 +379,7 @@ export type SettingsPatch_Deserialize = {
 	audioDevice?: string | null,
 	bitPerfect?: boolean | null,
 	sidebarWidth?: number | null,
+	libraryExcludes?: string[] | null,
 	alwaysOnTop?: boolean | null,
 	opacity?: number | null,
 };
@@ -397,6 +400,7 @@ export type SettingsPatch_Serialize = {
 	audioDevice: string | null,
 	bitPerfect: boolean | null,
 	sidebarWidth: number | null,
+	libraryExcludes: string[] | null,
 	alwaysOnTop: boolean | null,
 	opacity: number | null,
 };

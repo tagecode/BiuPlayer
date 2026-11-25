@@ -161,3 +161,36 @@ fn searches_by_pinyin_and_artist_album() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn scan_skips_hidden_and_excluded_folders_and_removes_folder() {
+    use biu_library::{ScanControl, ScanOutcome, ScanProgress};
+
+    let root = temp_root();
+    for dir in [".hidden", "skip", "keep"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+        std::fs::write(root.join(dir).join("track.mp3"), []).unwrap();
+    }
+    std::fs::write(root.join("visible.mp3"), []).unwrap();
+
+    let mut db = Database::open(root.join("test.db")).unwrap();
+    let folder_id = db.add_folder(&root).unwrap();
+    let control = ScanControl::default();
+    let progress = ScanProgress::default();
+    let outcome = db
+        .scan_folder_controlled_filtered(
+            folder_id,
+            &root,
+            &control,
+            &progress,
+            &["skip".to_string()],
+        )
+        .unwrap();
+    assert!(matches!(outcome, ScanOutcome::Completed(_)));
+    assert_eq!(db.track_count().unwrap(), 2);
+
+    assert!(db.remove_folder(folder_id).unwrap());
+    assert_eq!(db.track_count().unwrap(), 0);
+    drop(db);
+    std::fs::remove_dir_all(&root).unwrap();
+}

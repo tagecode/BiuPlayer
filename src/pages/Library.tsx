@@ -9,6 +9,7 @@ import {
 import { LibraryNav } from "../components/LibraryNav";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
+import { HighlightText } from "../components/TrackTable";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 36;
@@ -369,9 +370,15 @@ export function Library() {
               <tbody>
                 {hits.map((track) => (
                   <tr key={track.path}>
-                    <td title={track.path}>{track.title}</td>
-                    <td>{track.artist ?? t("player.unknownArtist")}</td>
-                    <td>{track.album ?? t("common.unknownAlbum")}</td>
+                    <td title={track.path}>
+                      <HighlightText text={track.title} query={query} />
+                    </td>
+                    <td>
+                      <HighlightText text={track.artist ?? t("player.unknownArtist")} query={query} />
+                    </td>
+                    <td>
+                      <HighlightText text={track.album ?? t("common.unknownAlbum")} query={query} />
+                    </td>
                     <td>{formatDuration(track.duration_ms)}</td>
                     <td className="mono">{track.format?.toUpperCase() ?? "-"}</td>
                     <td>
@@ -453,10 +460,14 @@ export function Library() {
                       {track ? (
                         <>
                           <span className="track-title" title={track.path}>
-                            {track.title}
+                            <HighlightText text={track.title} query={query} />
                           </span>
-                          <span>{track.artist ?? t("player.unknownArtist")}</span>
-                          <span>{track.album ?? t("common.unknownAlbum")}</span>
+                          <span>
+                            <HighlightText text={track.artist ?? t("player.unknownArtist")} query={query} />
+                          </span>
+                          <span>
+                            <HighlightText text={track.album ?? t("common.unknownAlbum")} query={query} />
+                          </span>
                           <span className="mono">{formatDuration(track.duration_ms)}</span>
                           <span className="mono">
                             {track.format?.toUpperCase() ?? "-"}

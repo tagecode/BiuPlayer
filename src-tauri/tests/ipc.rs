@@ -168,10 +168,15 @@ fn library_scan_start_reports_progress_until_complete() {
         None,
         db_path.clone(),
     ));
+    app.manage(biuplayer_lib::commands::settings::SettingsState::new(
+        db_path.with_extension("settings.json"),
+        biu_core::Settings::default(),
+    ));
     let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fixtures/audio/m0");
 
     let started = biuplayer_lib::commands::library::library_scan_start(
         fixtures.display().to_string(),
+        app.state(),
         app.state(),
     )
     .expect("start scan");

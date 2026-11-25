@@ -55,6 +55,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_snapshot,
             commands::library::library_add_folder,
             commands::library::library_scan_start,
+            commands::library::library_remove_folder,
             commands::library::library_scan_status,
             commands::library::library_scan_pause,
             commands::library::library_scan_resume,

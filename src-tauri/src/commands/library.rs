@@ -9,6 +9,8 @@ use biu_ipc::{
 use biu_library::{Database, ScanControl, ScanOutcome, ScanProgress, ScanReport, TrackListItem};
 use tauri::State;
 
+use crate::commands::settings::SettingsState;
+
 #[derive(Default)]
 pub struct ScanSession {
     pub status: LibraryScanStatusDto,
@@ -92,7 +94,11 @@ pub fn library_add_folder(
     Ok(scan_dto(report, total as f64))
 }
 
-fn begin_scan(state: &LibraryState, root: PathBuf) -> Result<LibraryScanStatusDto, CommandError> {
+fn begin_scan(
+    state: &LibraryState,
+    root: PathBuf,
+    excludes: Vec<String>,
+) -> Result<LibraryScanStatusDto, CommandError> {
     let mut session = lock_scan(state);
     if session.status.state == "scanning" || session.status.state == "cancelling" {
         return Err(CommandError::invalid_argument("a scan is already running"));
@@ -128,7 +134,8 @@ fn begin_scan(state: &LibraryState, root: PathBuf) -> Result<LibraryScanStatusDt
                 database.set_cover_dir(parent.join("covers"));
             }
             let folder_id = database.add_folder(&root)?;
-            database.scan_folder_controlled(folder_id, &root, &control, &progress)
+            database
+                .scan_folder_controlled_filtered(folder_id, &root, &control, &progress, &excludes)
         })();
 
         let mut session = session
@@ -171,9 +178,31 @@ fn begin_scan(state: &LibraryState, root: PathBuf) -> Result<LibraryScanStatusDt
 pub fn library_scan_start(
     path: String,
     state: State<'_, LibraryState>,
+    settings: State<'_, SettingsState>,
 ) -> Result<LibraryScanStatusDto, CommandError> {
     let root = canonical_folder(&path)?;
-    begin_scan(&state, root)
+    let excludes = settings
+        .settings
+        .lock()
+        .map(|settings| settings.library.exclude_globs.clone())
+        .unwrap_or_default();
+    begin_scan(&state, root, excludes)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_remove_folder(id: f64, state: State<'_, LibraryState>) -> Result<(), CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Err(CommandError::internal("library database is not open"));
+    };
+    if !database
+        .remove_folder(id as i64)
+        .map_err(|err| CommandError::internal(err.to_string()))?
+    {
+        return Err(CommandError::invalid_argument("folder not found"));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -211,6 +240,7 @@ pub fn library_scan_pause(
 #[specta::specta]
 pub fn library_scan_resume(
     state: State<'_, LibraryState>,
+    settings: State<'_, SettingsState>,
 ) -> Result<LibraryScanStatusDto, CommandError> {
     let root = {
         let session = lock_scan(&state);
@@ -223,7 +253,12 @@ pub fn library_scan_resume(
             .clone()
             .ok_or_else(|| CommandError::internal("scan root is missing"))?
     };
-    begin_scan(&state, PathBuf::from(root))
+    let excludes = settings
+        .settings
+        .lock()
+        .map(|settings| settings.library.exclude_globs.clone())
+        .unwrap_or_default();
+    begin_scan(&state, PathBuf::from(root), excludes)
 }
 
 #[tauri::command]
