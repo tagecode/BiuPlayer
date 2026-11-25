@@ -13,6 +13,7 @@
 | 新增跨模块集成 | `cargo test --test mvp_workflow` | **2 passed** |
 | 浏览器 E2E | `pnpm test:e2e` | **5 passed**，约 4.8s |
 | 原生启动冒烟 | `pnpm tauri dev` | 启动成功，无 panic |
+| CI | run 45597422130 | check 三平台 + e2e 全 success |
 
 ## 集成测试覆盖
 
@@ -73,4 +74,14 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-CI 新增 `e2e (browser mock)` 作业，在 ubuntu-22.04 上安装 Chromium 并执行同一套用例。
+CI 新增 `e2e (browser mock)` 作业，在 ubuntu-22.04 上安装 Chromium 并执行同一套用例；run
+[45597422130](https://github.com/tagecode/BiuPlayer/actions/runs/45597422130) 四个作业全部 success。
+
+首次 CI 失败原因是 Playwright webServer 未绑定 IPv4，Vite 监听 `localhost` 导致
+`http://127.0.0.1:4173` 不可达；已改为 `--host 127.0.0.1`。
+
+## 验收结论
+
+- **集成测试与浏览器 E2E 本轮通过**，可作为回归基线。
+- 这**不等于 MVP 整体验收通过**：原生窗口/托盘/音频/安装包仍需人工验收，浏览器 E2E 的 IPC 是 mock。
+
