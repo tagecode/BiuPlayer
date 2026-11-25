@@ -10,6 +10,7 @@ import {
   type QueueSnapshotDto_Serialize,
 } from "./bindings";
 import { useI18n, type Lang, type MessageKey } from "./i18n";
+import { applyFrameless, applyOpacity } from "./window";
 
 const nav: { to: string; labelKey: MessageKey; icon: string; end?: boolean }[] = [
   { to: "/", labelKey: "nav.nowPlaying", icon: "▶", end: true },
@@ -74,6 +75,7 @@ export function Shell() {
   const [dragging, setDragging] = useState(false);
   const [topQuery, setTopQuery] = useState("");
   const [crash, setCrash] = useState<CrashReport | null>(null);
+  const [frameless, setFrameless] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [collapsed, setCollapsed] = useState(false);
   const sidebarWidthRef = useRef(220);
@@ -91,6 +93,27 @@ export function Shell() {
         void getCurrentWindow().setAlwaysOnTop(Boolean(settings.alwaysOnTop)).catch(() => {});
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    commands
+      .settingsGet()
+      .then((settings) => {
+        setFrameless(settings.frameless);
+        void applyFrameless(settings.frameless);
+        void applyOpacity(settings.opacity ?? 1);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const value = Boolean((event as CustomEvent).detail);
+      setFrameless(value);
+      void applyFrameless(value);
+    };
+    window.addEventListener("biu:frameless", sync);
+    return () => window.removeEventListener("biu:frameless", sync);
   }, []);
 
   useEffect(() => {
@@ -402,7 +425,7 @@ export function Shell() {
       </aside>
 
       <div className="main">
-        <header className="titlebar">
+        <header className="titlebar" data-tauri-drag-region>
           <div className="titlebar-left">
             <button
               className="ghost icon-button"
@@ -415,6 +438,34 @@ export function Shell() {
             <span className="muted">{t("shell.offline")}</span>
           </div>
           <div className="titlebar-actions">
+            {frameless && (
+              <div className="window-controls">
+                <button
+                  type="button"
+                  className="window-control"
+                  aria-label={t("window.minimize")}
+                  onClick={() => void commands.windowMinimize()}
+                >
+                  –
+                </button>
+                <button
+                  type="button"
+                  className="window-control"
+                  aria-label={t("window.maximize")}
+                  onClick={() => void commands.windowToggleMaximize()}
+                >
+                  □
+                </button>
+                <button
+                  type="button"
+                  className="window-control danger"
+                  aria-label={t("window.close")}
+                  onClick={() => void commands.windowClose()}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <form
               onSubmit={(event) => {
                 event.preventDefault();

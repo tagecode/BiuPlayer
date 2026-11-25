@@ -174,6 +174,8 @@ pub struct UiSettings {
     pub always_on_top: bool,
     #[serde(default = "default_ui_opacity")]
     pub opacity: f64,
+    #[serde(default)]
+    pub frameless: bool,
 }
 
 fn default_ui_opacity() -> f64 {
@@ -189,6 +191,7 @@ impl Default for UiSettings {
             reduce_motion: false,
             always_on_top: false,
             opacity: 1.0,
+            frameless: false,
         }
     }
 }

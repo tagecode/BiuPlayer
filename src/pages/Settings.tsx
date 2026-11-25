@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { applyFrameless, applyOpacity } from "../window";
 import {
   commands,
   type AppInfo,
@@ -32,7 +33,8 @@ export function Settings() {
         setSettings(value);
         setExcludeDraft((value.libraryExcludes ?? []).join("\n"));
         applyTheme(value.theme);
-        document.documentElement.style.setProperty("--ui-opacity", String(value.opacity ?? 1));
+        void applyOpacity(value.opacity ?? 1);
+        void applyFrameless(Boolean(value.frameless));
         void getCurrentWindow().setAlwaysOnTop(Boolean(value.alwaysOnTop)).catch(() => {});
       })
       .catch((error) => setMessage(formatError(error, t)));
@@ -68,7 +70,13 @@ export function Settings() {
         await getCurrentWindow().setAlwaysOnTop(Boolean(patch.alwaysOnTop)).catch(() => {});
       }
       if (patch.opacity !== undefined) {
-        document.documentElement.style.setProperty("--ui-opacity", String(patch.opacity));
+        void applyOpacity(patch.opacity ?? 1);
+      }
+      if (patch.frameless !== undefined) {
+        void applyFrameless(Boolean(patch.frameless));
+        window.dispatchEvent(
+          new CustomEvent("biu:frameless", { detail: Boolean(patch.frameless) }),
+        );
       }
       if (patch.sidebarCollapsed !== undefined) {
         window.dispatchEvent(

@@ -1044,3 +1044,32 @@ body {
   color: #fff;
   border-color: rgb(255 255 255 / 45%);
 }
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+.window-control {
+  width: 34px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.window-control:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.window-control.danger:hover {
+  background: #c24343;
+  color: #fff;
+}

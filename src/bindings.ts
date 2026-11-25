@@ -13,6 +13,19 @@ export const commands = {
 	crashReport: (options?: InvokeOptions) => __TAURI_INVOKE<CrashReport | null>("crash_report", undefined, options),
 	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
 	startupArgs: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("startup_args", undefined, options),
+	/**
+	 *  应用原生窗口不透明度。返回是否由平台原生实现支持。
+	 * 
+	 *  - macOS：`NSWindow.alphaValue`
+	 *  - Windows：`WS_EX_LAYERED` + `SetLayeredWindowAttributes`
+	 *  - Linux：返回 false，由前端 CSS 降级
+	 */
+	setWindowOpacity: (opacity: number | null, options?: InvokeOptions) => __TAURI_INVOKE<boolean>("set_window_opacity", { opacity }, options),
+	setWindowFrameless: (frameless: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_window_frameless", { frameless }, options),
+	/**  为无边框模式提供窗口控制，避免前端直接依赖平台差异。 */
+	windowMinimize: (options?: InvokeOptions) => __TAURI_INVOKE<null>("window_minimize", undefined, options),
+	windowToggleMaximize: (options?: InvokeOptions) => __TAURI_INVOKE<null>("window_toggle_maximize", undefined, options),
+	windowClose: (options?: InvokeOptions) => __TAURI_INVOKE<null>("window_close", undefined, options),
 	playerOpen: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_open", { path }, options),
 	playerPlayQueue: (items: QueueItemDto_Deserialize[], startIndex: number | null, mode: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_play_queue", { items, startIndex, mode }, options),
 	playerPlay: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_play", undefined, options),
@@ -367,6 +380,7 @@ export type SettingsDto = {
 	libraryExcludes: string[],
 	alwaysOnTop: boolean,
 	opacity: number | null,
+	frameless: boolean,
 };
 
 export type SettingsPatch = SettingsPatch_Serialize | SettingsPatch_Deserialize;
@@ -391,6 +405,7 @@ export type SettingsPatch_Deserialize = {
 	libraryExcludes?: string[] | null,
 	alwaysOnTop?: boolean | null,
 	opacity?: number | null,
+	frameless?: boolean | null,
 };
 
 export type SettingsPatch_Serialize = {
@@ -413,6 +428,7 @@ export type SettingsPatch_Serialize = {
 	libraryExcludes: string[] | null,
 	alwaysOnTop: boolean | null,
 	opacity: number | null,
+	frameless: boolean | null,
 };
 
 export type TestTick = {

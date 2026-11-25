@@ -416,6 +416,7 @@ dependencies = [
  "biu-library",
  "biu-lyrics",
  "lofty",
+ "objc2",
  "serde",
  "serde_json",
  "specta",
@@ -429,6 +430,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "windows-sys 0.61.2",
  "zip",
 ]
 

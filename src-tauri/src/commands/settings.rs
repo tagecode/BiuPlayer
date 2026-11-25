@@ -43,6 +43,7 @@ pub struct SettingsDto {
     pub library_excludes: Vec<String>,
     pub always_on_top: bool,
     pub opacity: f64,
+    pub frameless: bool,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -68,6 +69,7 @@ impl From<&Settings> for SettingsDto {
             library_excludes: settings.library.exclude_globs.clone(),
             always_on_top: settings.ui.always_on_top,
             opacity: settings.ui.opacity,
+            frameless: settings.ui.frameless,
         }
     }
 }
@@ -94,6 +96,7 @@ pub struct SettingsPatch {
     pub library_excludes: Option<Vec<String>>,
     pub always_on_top: Option<bool>,
     pub opacity: Option<f64>,
+    pub frameless: Option<bool>,
 }
 
 #[tauri::command]
