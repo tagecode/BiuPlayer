@@ -34,5 +34,5 @@ MVP 设置中心固定为 8 类，与页面导航一致：
 ## 验收
 
 - `pnpm build` 通过：JS 447.51 kB / gzip 135.16 kB。
-- 手动检查：`/settings/audio`、`/settings/library` 等 URL 能定位到对应卡片；点击导航后 URL 与高亮同步。
-- 未做自动化浏览器测试；分类滚动行为依赖 `scrollIntoView`。
+- 构建通过；未做浏览器自动化或人工点击验收，`scrollIntoView` 定位与导航高亮尚未在真实窗口中验证。
+- 分类导航的 URL 同步逻辑基于 `useParams`：点击按钮写入 `/settings/<section>`，参数变化触发滚动与高亮。
