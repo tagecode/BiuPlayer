@@ -33,14 +33,13 @@ git push origin v0.1.0
 
 `release.yml`：
 
-1. `build`：Windows NSIS + 绿色 zip、macOS x64/arm64 dmg、Linux AppImage/deb/rpm。
+1. `build`：Windows NSIS + 绿色 zip、macOS x64/arm64 dmg、Linux AppImage/deb/rpm；产物体积名统一为 `BiuPlayer_<version>_<os>_<arch>`（版本取自 `package.json`，`pnpm check:version` 保证三处清单一致）。
 2. `checksums`：汇总所有产物，生成 `SHA256SUMS.txt`。
-3. `release`：仅在 tag 上运行，创建 **draft** Release，附全部产物与校验文件。
+3. `release`：仅在 tag 上运行，校验 tag 与 `package.json` 版本一致，从 `CHANGELOG.md` 提取对应版本段落作为正文，创建 **draft** Release，附全部产物与校验文件。
 
 ## 发布草稿
 
-- 打开 GitHub Releases，检查 draft 的产物、标题、自动生成的 release notes。
-- 把 `docs/release-notes/vX.Y.Z.md` 的内容合并进说明。
+- 打开 GitHub Releases，检查 draft 的产物、标题与正文（正文来自 CHANGELOG 对应版本；为空会直接失败）。
 - 确认 `SHA256SUMS.txt` 与产物一一对应。
 - 手动 Publish。
 

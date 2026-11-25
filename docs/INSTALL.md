@@ -12,15 +12,15 @@
 
 ### 绿色版
 
-1. 下载 `BiuPlayer_0.1.0_x64-portable.zip` 并解压到任意目录。
+1. 下载 `BiuPlayer_0.1.0_windows_x64-portable.zip` 并解压到任意目录。
 2. 运行 `BiuPlayer.exe`。
 3. 依赖 WebView2 Runtime；Win10 1809+ 通常已自带。
 
-绿色版数据默认写入 `%APPDATA%\BiuPlayer`，不会写安装目录。
+绿色版不带 `portable.flag` 时，数据写入 `%APPDATA%\BiuPlayer`；若在 `BiuPlayer.exe` 旁放一个空的 `portable.flag`，则配置、数据库与缓存全部落在 `<exe>/data`，可随 U 盘带走。
 
 ## macOS
 
-1. 下载对应架构的 dmg：Intel 用 `x64`，Apple Silicon 用 `aarch64`。
+1. 下载对应架构的 dmg：Intel 用 `BiuPlayer_0.1.0_macos_x64.dmg`，Apple Silicon 用 `BiuPlayer_0.1.0_macos_arm64.dmg`。
 2. 打开 dmg，把 `BiuPlayer.app` 拖到“应用程序”。
 3. 首次启动右键应用 →“打开”，或执行：
 
@@ -69,7 +69,7 @@ sudo rpm -i BiuPlayer-0.1.0-1.x86_64.rpm
 
 卸载：`sudo rpm -e biuplayer`。
 
-Linux 需要 WebKitGTK 4.1；Ubuntu 22.04/24.04 已验证，Ubuntu 20.04 只有 4.0，不兼容。
+Linux 需要 WebKitGTK 4.1；Ubuntu 22.04 已由 CI 在 Xvfb 下冒烟，Ubuntu 24.04/Wayland 尚未真机验证；Ubuntu 20.04 只有 4.0，不兼容。
 
 ## 数据位置
 

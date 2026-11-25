@@ -37,7 +37,7 @@
 | 路径/配置 | 平台数据目录、便携模式、settings.json 原子写、损坏隔离 |
 | 诊断 | panic 崩溃日志、settings+最近日志诊断 zip |
 
-未验证：Windows 真机启动、macOS arm64 真机、Ubuntu 24.04/Wayland、10 万曲库、真实封面、独占输出、gapless、队列/播放列表拖拽排序、设备拔插恢复。
+未验证/待补证据：Windows 11 与 macOS arm64 真机启动与出声、Ubuntu 24.04/Wayland、8 小时长稳与 10 万行 fps/CPU 基准、真实标签样本（ID3v1/APEv2/Vorbis/MP4 atoms/WAV-ID3）、设备拔插真机恢复。
 
 ## 环境要求
 
@@ -84,7 +84,7 @@ cargo run -p biu-library --example scan_bench -- 10000
 ## 目录
 
 ```text
-src/                     React 前端（M0 验证台）
+src/                     React 前端（视图 + 播放栏 + 设置）
 src/bindings.ts          tauri-specta 生成的类型与命令
 src-tauri/
   crates/
@@ -108,9 +108,9 @@ docs/                    产品/架构/MVP/报告
 
 最近一次绿色矩阵：<https://github.com/tagecode/BiuPlayer/actions/runs/45320213684>
 
-- Windows：`BiuPlayer_0.1.0_x64-setup.exe`、`BiuPlayer_0.1.0_x64-portable.zip`
-- macOS：`BiuPlayer_0.1.0_x64.dmg`、`BiuPlayer_0.1.0_aarch64.dmg`
-- Linux：`BiuPlayer_0.1.0_amd64.AppImage`、`.deb`、`.rpm`
+- Windows：`BiuPlayer_0.1.0_windows_x64-setup.exe`、`BiuPlayer_0.1.0_windows_x64-portable.zip`
+- macOS：`BiuPlayer_0.1.0_macos_x64.dmg`、`BiuPlayer_0.1.0_macos_arm64.dmg`
+- Linux：`BiuPlayer_0.1.0_linux_x64.AppImage`、`.deb`、`.rpm`
 
 > 产物未签名/未公证；macOS 需右键打开或清除 quarantine；Windows 需要 WebView2。
 
@@ -122,9 +122,9 @@ docs/                    产品/架构/MVP/报告
 
 ## 下一步
 
-1. 补 Windows 11 / macOS arm64 真机启动与出声冒烟。
-2. 按 Mvp.md 做桌面歌词窗口、内嵌歌词、发布材料与 E2E。
-3. 再做 LRC 歌词、设置中心、托盘/单实例与发布收尾。
+1. 打 `v0.1.0` tag 实跑发布矩阵，在干净机验证安装/升级/卸载与绿色版。
+2. 补 UI-15 证据：10 万行滚动 fps、播放 CPU ≤3%、8h 长稳（`powershell -ExecutionPolicy Bypass -File scripts\soak.ps1 -Hours 8`）。
+3. QA 收尾：诊断包路径脱敏、覆盖率门槛接入 CI、专辑艺术家视图与各标签格式夹具。
 
 ## 许可
 
