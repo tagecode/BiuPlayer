@@ -184,3 +184,45 @@ mod tests {
         assert!(system.contains("\"portable\": true"));
     }
 }
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct CrashReport {
+    pub file: String,
+    pub modified_ms: f64,
+}
+
+/// 返回最近一次崩溃日志；没有则返回 None。前端据此提示“上次异常退出”。
+pub fn latest_crash(log_dir: &Path) -> Option<CrashReport> {
+    let mut newest: Option<(SystemTime, PathBuf)> = None;
+    for entry in fs::read_dir(log_dir).ok()?.flatten() {
+        let path = entry.path();
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        if !name.starts_with("crash-") || !name.ends_with(".log") {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if newest
+            .as_ref()
+            .is_none_or(|(current, _)| modified > *current)
+        {
+            newest = Some((modified, path));
+        }
+    }
+    let (modified, path) = newest?;
+    let modified_ms = modified
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_millis() as f64)
+        .unwrap_or(0.0);
+    Some(CrashReport {
+        file: path.display().to_string(),
+        modified_ms,
+    })
+}

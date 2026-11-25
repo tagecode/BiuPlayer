@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -511,6 +511,9 @@ impl Database {
         if current < 3 {
             self.apply_v3()?;
         }
+        if current < 4 {
+            self.apply_v4()?;
+        }
         Ok(())
     }
 
@@ -644,6 +647,20 @@ impl Database {
         )?;
         tx.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'))",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn apply_v4(&mut self) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "ALTER TABLE tracks ADD COLUMN manual_order REAL;
+             CREATE INDEX IF NOT EXISTS idx_tracks_manual ON tracks(manual_order);",
+        )?;
+        tx.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (4, datetime('now'))",
             [],
         )?;
         tx.commit()?;
@@ -1079,6 +1096,7 @@ impl Database {
             "duration" => "t.duration_ms",
             "added" => "t.added_at",
             "path" => "t.path COLLATE NOCASE",
+            "manual" => "COALESCE(t.manual_order, t.id)",
             _ => "t.title COLLATE NOCASE",
         };
         let direction = if descending { "DESC" } else { "ASC" };
@@ -1108,6 +1126,64 @@ impl Database {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    /// 手动排序：把 `track_id` 放到 `before_id` 与 `after_id` 之间；两者为空表示首位/末位。
+    pub fn move_track(
+        &mut self,
+        track_id: i64,
+        before_id: Option<i64>,
+        after_id: Option<i64>,
+    ) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        let effective = |id: i64| -> Result<Option<f64>, rusqlite::Error> {
+            tx.query_row(
+                "SELECT COALESCE(manual_order, id) FROM tracks WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()
+        };
+        let mut before = match before_id {
+            Some(id) => effective(id)?,
+            None => None,
+        };
+        let mut after = match after_id {
+            Some(id) => effective(id)?,
+            None => None,
+        };
+        if let (Some(before_value), Some(after_value)) = (before, after) {
+            if (after_value - before_value).abs() < 0.000_001 {
+                tx.execute(
+                    "WITH ordered AS (
+                        SELECT id, ROW_NUMBER() OVER (ORDER BY COALESCE(manual_order, id), id) AS rn
+                        FROM tracks
+                     )
+                     UPDATE tracks SET manual_order = (SELECT rn * 1000.0 FROM ordered WHERE ordered.id = tracks.id)",
+                    [],
+                )?;
+                before = match before_id {
+                    Some(id) => effective(id)?,
+                    None => None,
+                };
+                after = match after_id {
+                    Some(id) => effective(id)?,
+                    None => None,
+                };
+            }
+        }
+        let target = match (before, after) {
+            (Some(before_value), Some(after_value)) => (before_value + after_value) / 2.0,
+            (Some(before_value), None) => before_value + 1.0,
+            (None, Some(after_value)) => after_value - 1.0,
+            (None, None) => 0.0,
+        };
+        tx.execute(
+            "UPDATE tracks SET manual_order = ?1 WHERE id = ?2",
+            rusqlite::params![target, track_id],
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn list_genres(&self) -> Result<Vec<(String, i64)>, LibraryError> {

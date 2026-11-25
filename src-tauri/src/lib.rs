@@ -31,6 +31,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::emit_test_events,
             commands::system::audio_devices,
             commands::system::app_paths,
+            commands::system::crash_report,
             commands::system::export_diagnostics,
             commands::system::startup_args,
             commands::player::player_open,
@@ -63,6 +64,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_tracks,
             commands::library::library_track_count,
             commands::library::library_search,
+            commands::library::library_move_track,
             commands::library::library_albums,
             commands::library::library_album_tracks,
             commands::library::library_artists,
@@ -97,6 +99,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<TestTick>()
         .typ::<AudioDevice>()
         .typ::<AppPathsInfo>()
+        .typ::<crate::diagnostics::CrashReport>()
         .typ::<PlayerStateDto>()
         .typ::<biu_ipc::QueueItemDto>()
         .typ::<biu_ipc::QueueSnapshotDto>()

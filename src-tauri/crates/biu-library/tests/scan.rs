@@ -194,3 +194,56 @@ fn scan_skips_hidden_and_excluded_folders_and_removes_folder() {
     drop(db);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn manual_order_moves_and_persists() {
+    use biu_library::{ScanControl, ScanOutcome, ScanProgress};
+
+    let root = temp_root();
+    for name in ["a.mp3", "b.mp3", "c.mp3"] {
+        std::fs::write(root.join(name), []).unwrap();
+    }
+    let db_path = root.join("test.db");
+    let mut db = Database::open(&db_path).unwrap();
+    let folder_id = db.add_folder(&root).unwrap();
+    let control = ScanControl::default();
+    let progress = ScanProgress::default();
+    let outcome = db
+        .scan_folder_controlled(folder_id, &root, &control, &progress)
+        .unwrap();
+    assert!(matches!(outcome, ScanOutcome::Completed(_)));
+
+    let before = db.list_tracks_sorted(10, 0, "manual", false).unwrap();
+    assert_eq!(
+        before
+            .iter()
+            .map(|track| track.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a", "b", "c"]
+    );
+    let first_id = before[0].id;
+    let last_id = before[2].id;
+    db.move_track(last_id, None, Some(first_id)).unwrap();
+
+    let after = db.list_tracks_sorted(10, 0, "manual", false).unwrap();
+    assert_eq!(
+        after
+            .iter()
+            .map(|track| track.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["c", "a", "b"]
+    );
+    drop(db);
+
+    let reopened = Database::open(&db_path).unwrap();
+    let persisted = reopened.list_tracks_sorted(10, 0, "manual", false).unwrap();
+    assert_eq!(
+        persisted
+            .iter()
+            .map(|track| track.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["c", "a", "b"]
+    );
+    drop(reopened);
+    std::fs::remove_dir_all(&root).unwrap();
+}

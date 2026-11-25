@@ -114,3 +114,11 @@ fn now_ms() -> f64 {
         .map(|d| d.as_millis() as f64)
         .unwrap_or(0.0)
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn crash_report(
+    paths: tauri::State<'_, crate::AppPathsState>,
+) -> Option<crate::diagnostics::CrashReport> {
+    crate::diagnostics::latest_crash(&paths.0.log_dir)
+}

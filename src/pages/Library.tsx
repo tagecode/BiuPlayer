@@ -16,7 +16,7 @@ const ROW_HEIGHT = 36;
 const VIEWPORT_HEIGHT = 480;
 const OVERSCAN = 6;
 
-type TrackSort = "title" | "artist" | "album" | "duration" | "added";
+type TrackSort = "title" | "artist" | "album" | "duration" | "added" | "manual";
 
 function formatDuration(ms: number | null): string {
   if (!ms || ms <= 0) return "--:--";
@@ -47,6 +47,7 @@ export function Library() {
   const [playlists, setPlaylists] = useState<PlaylistDto[]>([]);
   const [targetPlaylist, setTargetPlaylist] = useState("");
   const [scan, setScan] = useState<LibraryScanStatusDto_Serialize | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [message, setMessage] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number; track: LibraryTrackDto_Serialize } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -131,7 +132,7 @@ export function Library() {
         .catch((error) => setMessage(formatError(error, t)))
         .finally(() => inFlight.current.delete(offset));
     }
-  }, [start, end, sort, descending, count, searching]);
+  }, [start, end, sort, descending, count, searching, reloadKey]);
 
   function changeSort(next: TrackSort) {
     setScrollTop(0);
@@ -139,11 +140,35 @@ export function Library() {
     generation.current += 1;
     inFlight.current.clear();
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (next === "manual") {
+      setSort("manual");
+      setDescending(false);
+      return;
+    }
     if (sort === next) {
       setDescending((value) => !value);
     } else {
       setSort(next);
       setDescending(false);
+    }
+  }
+
+  async function moveTrack(index: number, delta: number) {
+    const track = tracks[index];
+    const target = tracks[index + delta];
+    if (!track?.id || !target?.id) return;
+    const before = delta < 0 ? tracks[index - 2] : target;
+    const after = delta < 0 ? target : tracks[index + 2];
+    if (delta < 0 && index - 2 >= 0 && !before?.id) return;
+    if (delta > 0 && index + 2 < count && !after?.id) return;
+    try {
+      await commands.libraryMoveTrack(track.id, before?.id ?? null, after?.id ?? null);
+      setTracks({});
+      generation.current += 1;
+      inFlight.current.clear();
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      setMessage(formatError(error, t));
     }
   }
 
@@ -412,6 +437,7 @@ export function Library() {
                   ["artist", t("common.artist")],
                   ["album", t("common.album")],
                   ["duration", t("common.duration")],
+                  ["manual", t("library.manualSort")],
                 ] as Array<[TrackSort, string]>
               ).map(([column, label]) => (
                 <button
@@ -473,6 +499,28 @@ export function Library() {
                             {track.format?.toUpperCase() ?? "-"}
                           </span>
                           <span className="row-actions">
+                            {sort === "manual" && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={index === 0}
+                                  aria-label={t("common.moveUp")}
+                                  onClick={() => moveTrack(index, -1)}
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={index >= count - 1}
+                                  aria-label={t("common.moveDown")}
+                                  onClick={() => moveTrack(index, 1)}
+                                >
+                                  ↓
+                                </button>
+                              </>
+                            )}
                             <button
                               type="button"
                               className="ghost"

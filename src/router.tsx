@@ -10,6 +10,7 @@ import { Folders, FolderDetail, Genres, GenreDetail, Years, YearDetail } from ".
 import { NowPlaying } from "./pages/NowPlaying";
 import { DesktopLyrics } from "./pages/DesktopLyrics";
 import { Settings } from "./pages/Settings";
+import { Search } from "./pages/Search";
 import { PlaylistDetail } from "./pages/PlaylistDetail";
 import { Playlists } from "./pages/Playlists";
 import { Placeholder } from "./pages/Placeholder";
@@ -39,7 +40,7 @@ export const router = createHashRouter([
       { path: "/library/folders/:id", element: <FolderDetail /> },
       { path: "/playlists", element: <Playlists /> },
       { path: "/playlists/:id", element: <PlaylistDetail /> },
-      { path: "/search", element: page("P-08", "pages.search.title", "pages.search.desc") },
+      { path: "/search", element: <Search /> },
       { path: "/lyrics/:trackId", element: page("P-09", "pages.lyrics.title", "pages.lyrics.desc") },
       { path: "/equalizer", element: page("P-10", "pages.equalizer.title", "pages.equalizer.desc") },
       { path: "/skins", element: page("P-11", "pages.skins.title", "pages.skins.desc") },

@@ -325,6 +325,26 @@ pub fn library_track_count(state: State<'_, LibraryState>) -> f64 {
 
 #[tauri::command]
 #[specta::specta]
+pub fn library_move_track(
+    track_id: f64,
+    before_id: Option<f64>,
+    after_id: Option<f64>,
+    state: tauri::State<'_, LibraryState>,
+) -> Result<(), CommandError> {
+    let mut guard = state.db.lock().unwrap();
+    let Some(db) = guard.as_mut() else {
+        return Err(CommandError::internal("library not initialized"));
+    };
+    db.move_track(
+        track_id as i64,
+        before_id.map(|value| value as i64),
+        after_id.map(|value| value as i64),
+    )
+    .map_err(|err| CommandError::internal(err.to_string()))
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn library_search(
     query: String,
     limit: u32,

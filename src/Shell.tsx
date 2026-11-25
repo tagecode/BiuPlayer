@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { formatError } from "./errors";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import {
   commands,
+  type CrashReport,
   type PlayerStateDto_Serialize,
   type QueueSnapshotDto_Serialize,
 } from "./bindings";
@@ -64,12 +65,15 @@ function nameFromPath(path: string): string {
 export function Shell() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const { lang, setLang, t } = useI18n();
+  const navigate = useNavigate();
   const [player, setPlayer] = useState<PlayerStateDto_Serialize | null>(null);
   const [queue, setQueue] = useState<QueueSnapshotDto_Serialize | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
   const [queueDrag, setQueueDrag] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [topQuery, setTopQuery] = useState("");
+  const [crash, setCrash] = useState<CrashReport | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [collapsed, setCollapsed] = useState(false);
   const sidebarWidthRef = useRef(220);
@@ -85,6 +89,17 @@ export function Shell() {
         const opacity = Math.min(1, Math.max(0.7, settings.opacity ?? 1));
         document.documentElement.style.setProperty("--ui-opacity", String(opacity));
         void getCurrentWindow().setAlwaysOnTop(Boolean(settings.alwaysOnTop)).catch(() => {});
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    commands
+      .crashReport()
+      .then((report) => {
+        if (!report) return;
+        if (localStorage.getItem("biu.crash.dismissed") === report.file) return;
+        setCrash(report);
       })
       .catch(() => {});
   }, []);
@@ -314,6 +329,30 @@ export function Shell() {
       className={collapsed ? "shell collapsed" : "shell"}
       style={{ "--sidebar-width": collapsed ? "64px" : `${sidebarWidth}px` } as React.CSSProperties}
     >
+      {crash && (
+        <div className="crash-banner" role="alert">
+          <span>{t("crash.desc")}</span>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              void commands.exportDiagnostics().then((path) => setNotice(t("crash.exported", { path })));
+            }}
+          >
+            {t("crash.export")}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              localStorage.setItem("biu.crash.dismissed", crash.file);
+              setCrash(null);
+            }}
+          >
+            {t("crash.dismiss")}
+          </button>
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">Biu</span>
@@ -376,7 +415,20 @@ export function Shell() {
             <span className="muted">{t("shell.offline")}</span>
           </div>
           <div className="titlebar-actions">
-            <input className="search" placeholder={t("shell.search")} disabled />
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const value = topQuery.trim();
+                navigate(value ? `/search?q=${encodeURIComponent(value)}` : "/search");
+              }}
+            >
+              <input
+                className="search"
+                placeholder={t("shell.search")}
+                value={topQuery}
+                onChange={(event) => setTopQuery(event.target.value)}
+              />
+            </form>
           </div>
         </header>
         <main className="content">

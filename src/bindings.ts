@@ -10,6 +10,7 @@ export const commands = {
 	emitTestEvents: (count: number, options?: InvokeOptions) => __TAURI_INVOKE<number>("emit_test_events", { count }, options),
 	audioDevices: (options?: InvokeOptions) => __TAURI_INVOKE<AudioDevice[]>("audio_devices", undefined, options),
 	appPaths: (options?: InvokeOptions) => __TAURI_INVOKE<AppPathsInfo>("app_paths", undefined, options),
+	crashReport: (options?: InvokeOptions) => __TAURI_INVOKE<CrashReport | null>("crash_report", undefined, options),
 	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
 	startupArgs: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("startup_args", undefined, options),
 	playerOpen: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_open", { path }, options),
@@ -42,6 +43,7 @@ export const commands = {
 	libraryTracks: (limit: number, offset: number, sort: string | null, descending: boolean | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_tracks", { limit, offset, sort, descending }, options),
 	libraryTrackCount: (options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_track_count", undefined, options),
 	librarySearch: (query: string, limit: number, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_search", { query, limit }, options),
+	libraryMoveTrack: (trackId: number | null, beforeId: number | null, afterId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("library_move_track", { trackId, beforeId, afterId }, options),
 	libraryAlbums: (options?: InvokeOptions) => __TAURI_INVOKE<AlbumDto_Serialize[]>("library_albums", undefined, options),
 	libraryAlbumTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_album_tracks", { id }, options),
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
@@ -132,6 +134,11 @@ export type AudioDevice = {
 export type CommandError = {
 	code: string,
 	message: string,
+};
+
+export type CrashReport = {
+	file: string,
+	modified_ms: number | null,
 };
 
 export type FolderDto = {
