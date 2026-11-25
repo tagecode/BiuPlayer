@@ -398,7 +398,10 @@ fn prepare_existing(path: &Path) -> Result<(), LibraryError> {
 /// absolute path prefixes or directory names; wildcard wrappers such as
 /// `**/name/**` are stripped before matching.
 fn is_excluded_path(path: &Path, root: &Path, excludes: &[String]) -> bool {
-    let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
     if name.starts_with('.') {
         return true;
     }
