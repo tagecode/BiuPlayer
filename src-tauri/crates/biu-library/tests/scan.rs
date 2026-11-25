@@ -213,25 +213,22 @@ fn manual_order_moves_and_persists() {
         .unwrap();
     assert!(matches!(outcome, ScanOutcome::Completed(_)));
 
+    // 扫描顺序由文件系统决定，先记录实际顺序，再验证“末项移到首位”的语义。
     let before = db.list_tracks_sorted(10, 0, "manual", false).unwrap();
-    assert_eq!(
-        before
-            .iter()
-            .map(|track| track.title.as_str())
-            .collect::<Vec<_>>(),
-        vec!["a", "b", "c"]
-    );
+    assert_eq!(before.len(), 3);
+    let titles: Vec<String> = before.iter().map(|track| track.title.clone()).collect();
     let first_id = before[0].id;
     let last_id = before[2].id;
     db.move_track(last_id, None, Some(first_id)).unwrap();
 
+    let expected = vec![titles[2].clone(), titles[0].clone(), titles[1].clone()];
     let after = db.list_tracks_sorted(10, 0, "manual", false).unwrap();
     assert_eq!(
         after
             .iter()
-            .map(|track| track.title.as_str())
+            .map(|track| track.title.clone())
             .collect::<Vec<_>>(),
-        vec!["c", "a", "b"]
+        expected
     );
     drop(db);
 
@@ -240,9 +237,9 @@ fn manual_order_moves_and_persists() {
     assert_eq!(
         persisted
             .iter()
-            .map(|track| track.title.as_str())
+            .map(|track| track.title.clone())
             .collect::<Vec<_>>(),
-        vec!["c", "a", "b"]
+        expected
     );
     drop(reopened);
     std::fs::remove_dir_all(&root).unwrap();
