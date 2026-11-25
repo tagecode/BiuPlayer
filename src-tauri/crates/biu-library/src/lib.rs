@@ -1207,11 +1207,16 @@ impl Database {
              WHERE missing = 0 AND (path = ?1 OR path LIKE ?2 ESCAPE '\\')
              ORDER BY path",
         )?;
-        let escaped = root
+        let base = format!(
+            "{}{}",
+            root.trim_end_matches(['/', '\\']),
+            std::path::MAIN_SEPARATOR
+        );
+        let escaped = base
             .replace('\\', "\\\\")
             .replace('%', "\\%")
             .replace('_', "\\_");
-        let prefix = format!("{}/%", escaped.trim_end_matches('/'));
+        let prefix = format!("{escaped}%");
         let rows = stmt.query_map(params![root, prefix], |row| row.get(0))?;
         let mut out = Vec::new();
         for row in rows {
