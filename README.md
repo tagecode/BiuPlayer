@@ -69,6 +69,7 @@ cd src-tauri
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+pnpm test:e2e        # 浏览器 E2E（mock Tauri IPC）
 ```
 
 音频夹具与探针：
