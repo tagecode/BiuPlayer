@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -128,6 +128,7 @@ struct TrackTags {
     title: Option<String>,
     artist: Option<String>,
     album: Option<String>,
+    album_artist: Option<String>,
     track_no: Option<u32>,
     disc_no: Option<u32>,
     genre: Option<String>,
@@ -210,6 +211,9 @@ fn read_tags(path: &Path) -> Option<TrackTags> {
             .map(|value| value.to_string()),
         album: tag
             .and_then(|tag| tag.album())
+            .map(|value| value.to_string()),
+        album_artist: tag
+            .and_then(|tag| tag.get_string(&lofty::tag::ItemKey::AlbumArtist))
             .map(|value| value.to_string()),
         track_no: tag.and_then(|tag| tag.track()),
         disc_no: tag.and_then(|tag| tag.disk()),
@@ -323,6 +327,13 @@ pub struct AlbumSummary {
     pub artist: Option<String>,
     pub year: Option<i64>,
     pub track_count: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlbumArtistSummary {
+    pub name: String,
+    pub track_count: i64,
+    pub album_count: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -507,6 +518,9 @@ impl Database {
         if current < 4 {
             self.apply_v4()?;
         }
+        if current < 5 {
+            self.apply_v5()?;
+        }
         Ok(())
     }
 
@@ -654,6 +668,20 @@ impl Database {
         )?;
         tx.execute(
             "INSERT INTO schema_migrations(version, applied_at) VALUES (4, datetime('now'))",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn apply_v5(&mut self) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute_batch(
+            "ALTER TABLE tracks ADD COLUMN album_artist TEXT;
+             CREATE INDEX IF NOT EXISTS idx_tracks_album_artist ON tracks(album_artist);",
+        )?;
+        tx.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (5, datetime('now'))",
             [],
         )?;
         tx.commit()?;
@@ -971,8 +999,8 @@ impl Database {
                 "INSERT INTO tracks(
                     folder_id, path, title, search_text, artist_id, album_id, track_no, disc_no,
                     genre, year, duration_ms, sample_rate, channels, bitrate,
-                    format, size_bytes, mtime, added_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                    format, size_bytes, mtime, album_artist, added_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
                     datetime('now'), datetime('now'))
                  ON CONFLICT(path) DO UPDATE SET
                     folder_id = excluded.folder_id,
@@ -991,6 +1019,7 @@ impl Database {
                     format = excluded.format,
                     size_bytes = excluded.size_bytes,
                     mtime = excluded.mtime,
+                    album_artist = excluded.album_artist,
                     updated_at = datetime('now')",
                 params![
                     folder_id,
@@ -1009,7 +1038,8 @@ impl Database {
                     tags.as_ref().and_then(|tags| tags.bitrate),
                     ext,
                     size,
-                    mtime
+                    mtime,
+                    tags.as_ref().and_then(|tags| tags.album_artist.clone())
                 ],
             )?;
             tx.commit()?;
@@ -1048,7 +1078,7 @@ impl Database {
             return Ok(Vec::new());
         }
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at, t.added_at
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
              FROM tracks_fts f JOIN tracks t ON t.id = f.rowid
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
@@ -1739,6 +1769,58 @@ impl Database {
         Ok(out)
     }
 
+    pub fn list_album_artists(&self) -> Result<Vec<AlbumArtistSummary>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT COALESCE(NULLIF(TRIM(t.album_artist), ''), ar.name, '') AS name,
+                    COUNT(DISTINCT t.id), COUNT(DISTINCT t.album_id)
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             WHERE t.missing = 0
+             GROUP BY name
+             HAVING name <> ''
+             ORDER BY name COLLATE NOCASE",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(AlbumArtistSummary {
+                name: row.get(0)?,
+                track_count: row.get(1)?,
+                album_count: row.get(2)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn album_artist_tracks(&self, name: &str) -> Result<Vec<TrackListItem>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
+             FROM tracks t
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
+             WHERE COALESCE(NULLIF(TRIM(t.album_artist), ''), ar.name) = ?1 AND t.missing = 0
+             ORDER BY al.title COLLATE NOCASE, t.disc_no, t.track_no, t.title COLLATE NOCASE, t.id",
+        )?;
+        let rows = stmt.query_map(params![name], |row| {
+            Ok(TrackListItem {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
+                added_at: row.get(7)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
     pub fn artist_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {
         let mut stmt = self.conn.prepare(
             "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at

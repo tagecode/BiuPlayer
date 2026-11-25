@@ -72,6 +72,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::library::library_move_track,
             commands::library::library_albums,
             commands::library::library_album_tracks,
+            commands::library::library_album_artists,
+            commands::library::library_album_artist_tracks,
             commands::library::library_artists,
             commands::library::library_artist_tracks,
             commands::library::library_album_cover,

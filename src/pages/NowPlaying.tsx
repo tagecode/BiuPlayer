@@ -7,6 +7,7 @@ import {
   type QueueSnapshotDto_Serialize,
 } from "../bindings";
 import { useI18n, type MessageKey } from "../i18n";
+import { activeLineIndex, interpolatePosition, type PositionAnchor } from "../lyricsTiming";
 import { formatError } from "../errors";
 
 const modes = ["sequential", "list_loop", "single_loop", "shuffle"] as const;
@@ -32,6 +33,8 @@ export function NowPlaying() {
   const [lyrics, setLyrics] = useState<LyricsDto_Serialize | null>(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsOffset, setLyricsOffset] = useState(0);
+  const [lyricsClock, setLyricsClock] = useState(0);
+  const lyricAnchor = useRef<PositionAnchor>({ positionMs: 0, playing: false, atMs: 0 });
   const lyricsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -87,13 +90,28 @@ export function NowPlaying() {
     };
   }, [player?.path]);
 
-  const positionForLyrics = player?.position_ms ?? 0;
-  const activeLine = lyrics
-    ? lyrics.lines.reduce(
-        (current, line, index) => ((line.timeMs ?? 0) <= positionForLyrics + 80 ? index : current),
-        -1,
-      )
-    : -1;
+  // The player event fires at 4 Hz; keep a local clock so the highlighted line
+  // follows the audio instead of jumping every 250 ms.
+  useEffect(() => {
+    const anchor: PositionAnchor = {
+      positionMs: player?.position_ms ?? 0,
+      playing: player?.state === "playing",
+      atMs: typeof performance === "undefined" ? Date.now() : performance.now(),
+    };
+    lyricAnchor.current = anchor;
+    setLyricsClock(interpolatePosition(anchor, anchor.atMs, player?.duration_ms ?? 0));
+  }, [player?.position_ms, player?.state, player?.duration_ms]);
+
+  useEffect(() => {
+    if (player?.state !== "playing") return;
+    const timer = window.setInterval(() => {
+      const nowMs = typeof performance === "undefined" ? Date.now() : performance.now();
+      setLyricsClock(interpolatePosition(lyricAnchor.current, nowMs, player?.duration_ms ?? 0));
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [player?.state, player?.duration_ms]);
+
+  const activeLine = lyrics ? activeLineIndex(lyrics.lines, lyricsClock, lyricsOffset) : -1;
 
   useEffect(() => {
     const active = lyricsRef.current?.querySelector<HTMLElement>(".active");

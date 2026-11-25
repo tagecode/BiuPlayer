@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use base64::Engine;
 use biu_ipc::{
-    AlbumDto, ArtistDto, CommandError, FolderDto, GenreDto, LibraryScanDto, LibraryScanStatusDto,
-    LibraryTrackDto, PlaylistDto, PlaylistItemDto, YearDto,
+    AlbumArtistDto, AlbumDto, ArtistDto, CommandError, FolderDto, GenreDto, LibraryScanDto,
+    LibraryScanStatusDto, LibraryTrackDto, PlaylistDto, PlaylistItemDto, YearDto,
 };
 use biu_library::{Database, ScanControl, ScanOutcome, ScanProgress, ScanReport, TrackListItem};
 use tauri::State;
@@ -690,6 +690,43 @@ pub fn library_artists(state: State<'_, LibraryState>) -> Result<Vec<ArtistDto>,
         .collect())
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn library_album_artists(
+    state: State<'_, LibraryState>,
+) -> Result<Vec<AlbumArtistDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .list_album_artists()
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows
+        .into_iter()
+        .map(|row| AlbumArtistDto {
+            name: row.name,
+            track_count: row.track_count as f64,
+            album_count: row.album_count as f64,
+        })
+        .collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_album_artist_tracks(
+    name: String,
+    state: State<'_, LibraryState>,
+) -> Result<Vec<LibraryTrackDto>, CommandError> {
+    let guard = lock_db(&state);
+    let Some(database) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = database
+        .album_artist_tracks(&name)
+        .map_err(|err| CommandError::internal(err.to_string()))?;
+    Ok(rows.into_iter().map(track_dto).collect())
+}
 #[tauri::command]
 #[specta::specta]
 pub fn library_artist_tracks(

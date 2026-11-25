@@ -59,6 +59,8 @@ export const commands = {
 	libraryMoveTrack: (trackId: number | null, beforeId: number | null, afterId: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("library_move_track", { trackId, beforeId, afterId }, options),
 	libraryAlbums: (options?: InvokeOptions) => __TAURI_INVOKE<AlbumDto_Serialize[]>("library_albums", undefined, options),
 	libraryAlbumTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_album_tracks", { id }, options),
+	libraryAlbumArtists: (options?: InvokeOptions) => __TAURI_INVOKE<AlbumArtistDto[]>("library_album_artists", undefined, options),
+	libraryAlbumArtistTracks: (name: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_album_artist_tracks", { name }, options),
 	libraryArtists: (options?: InvokeOptions) => __TAURI_INVOKE<ArtistDto[]>("library_artists", undefined, options),
 	libraryArtistTracks: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<LibraryTrackDto_Serialize[]>("library_artist_tracks", { id }, options),
 	libraryAlbumCover: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("library_album_cover", { id }, options),
@@ -88,6 +90,12 @@ export const commands = {
 };
 
 /* Types */
+export type AlbumArtistDto = {
+	name: string,
+	track_count: number | null,
+	album_count: number | null,
+};
+
 export type AlbumDto = AlbumDto_Serialize | AlbumDto_Deserialize;
 
 export type AlbumDto_Deserialize = {

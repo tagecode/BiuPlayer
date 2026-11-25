@@ -153,6 +153,11 @@
     library_album_tracks: () => clone(tracks.slice(0, 1)),
     library_artists: () => [{ id: 1, name: "周杰伦", track_count: 2 }, { id: 2, name: "Coldplay", track_count: 1 }],
     library_artist_tracks: () => clone(tracks.slice(0, 2)),
+    library_album_artists: () => [
+      { name: "周杰伦", track_count: 2, album_count: 2 },
+      { name: "Coldplay", track_count: 1, album_count: 1 },
+    ],
+    library_album_artist_tracks: ({ name }) => clone(tracks.filter((track) => track.artist === name)),
     library_album_cover: () => null,
     library_genres: () => [{ name: "流行", track_count: 2 }],
     library_genre_tracks: () => clone(tracks.slice(0, 2)),

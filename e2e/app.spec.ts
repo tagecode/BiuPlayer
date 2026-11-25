@@ -68,3 +68,13 @@ test("theme toggle flips data-theme and persists the mode", async ({ page }) => 
   await page.locator(".theme-toggle").click();
   await expect(html).toHaveAttribute("data-theme", initial ?? "dark");
 });
+
+test("album artist list opens a filtered detail page", async ({ page }) => {
+  await page.goto("/#/library/album-artists");
+  const link = page.getByRole("link", { name: /周杰伦/ });
+  await expect(link).toBeVisible();
+  await expect(link).toContainText("2");
+  await link.click();
+  await expect(page).toHaveURL(/album-artists/);
+  await expect(page.locator(".track-table tbody tr")).toHaveCount(2);
+});

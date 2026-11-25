@@ -1,0 +1,65 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { commands, type AlbumArtistDto } from "../bindings";
+import { LibraryNav } from "../components/LibraryNav";
+import { useI18n } from "../i18n";
+import { formatError } from "../errors";
+
+export function AlbumArtists() {
+  const { t } = useI18n();
+  const [artists, setArtists] = useState<AlbumArtistDto[]>([]);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    commands
+      .libraryAlbumArtists()
+      .then(setArtists)
+      .catch((error) => setMessage(formatError(error, t)));
+  }, []);
+
+  return (
+    <section className="page">
+      <header className="page-head">
+        <div>
+          <p className="page-kicker">P-05</p>
+          <h1>{t("nav.albumArtists")}</h1>
+          <p className="muted">{t("pages.albumArtists.desc")}</p>
+        </div>
+        <span className="pill">
+          {artists.length} {t("common.artistsSuffix")}
+        </span>
+      </header>
+      <LibraryNav />
+      {message && <p className="notice">{message}</p>}
+      {artists.length === 0 ? (
+        <div className="empty-card">
+          <strong>{t("albumArtists.emptyTitle")}</strong>
+          <span>{t("albumArtists.emptyHint")}</span>
+          <Link to="/library">{t("common.openLibrary")}</Link>
+        </div>
+      ) : (
+        <ul className="artist-list">
+          {artists.map((artist) => (
+            <li key={artist.name}>
+              <Link
+                to={`/library/album-artists/${encodeURIComponent(artist.name)}`}
+                className="artist-row"
+              >
+                <span className="artist-avatar">
+                  {artist.name.trim().charAt(0).toUpperCase() || "?"}
+                </span>
+                <span>
+                  <strong>{artist.name}</strong>
+                  <span className="muted">
+                    {artist.album_count ?? 0} {t("nav.albums")} · {artist.track_count ?? 0}{" "}
+                    {t("common.tracksSuffix")}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

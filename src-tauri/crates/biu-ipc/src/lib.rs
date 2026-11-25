@@ -244,6 +244,13 @@ pub struct FolderDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AlbumArtistDto {
+    pub name: String,
+    pub track_count: f64,
+    pub album_count: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ArtistDto {
     pub id: f64,
     pub name: String,

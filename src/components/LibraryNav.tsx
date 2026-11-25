@@ -7,6 +7,7 @@ export function LibraryNav() {
     { to: "/library", label: t("nav.library"), end: true },
     { to: "/library/albums", label: t("nav.albums") },
     { to: "/library/artists", label: t("nav.artists") },
+    { to: "/library/album-artists", label: t("nav.albumArtists") },
     { to: "/library/genres", label: t("pages.genres.title") },
     { to: "/library/years", label: t("pages.years.title") },
     { to: "/library/folders", label: t("pages.folders.title") },
