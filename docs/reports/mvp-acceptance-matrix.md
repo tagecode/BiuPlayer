@@ -1,6 +1,6 @@
 # BiuPlayer MVP 验收矩阵（51 项 P0）
 
-> 归档日期：2026-11-25（第二轮闭环）  
+> 归档日期：2026-11-25（第四轮：代码类缺口闭环）
 > 对应文档：`docs/Mvp.md` §3 验收口径、§7.5 发布门禁  
 > 状态口径：✅ 达标（有自动化或本地复验证据）；🟡 部分达标（代码完成或仅静态验证，仍有明确缺口）；⛔ 未达标
 
@@ -11,17 +11,17 @@
 | AUD 播放 | 6 | 1 | 5 | 0 |
 | PL 列表/队列 | 7 | 1 | 6 | 0 |
 | LIB 媒体库 | 5 | 1 | 4 | 0 |
-| TAG 标签 | 1 | 0 | 1 | 0 |
-| LRC 歌词 | 3 | 2 | 1 | 0 |
-| UI 界面 | 6 | 3 | 2 | 1 |
+| TAG 标签 | 1 | 1 | 0 | 0 |
+| LRC 歌词 | 3 | 3 | 0 | 0 |
+| UI 界面 | 6 | 3 | 3 | 0 |
 | SYS 系统 | 2 | 1 | 1 | 0 |
 | DATA 数据 | 3 | 3 | 0 | 0 |
 | SET 设置 | 3 | 2 | 1 | 0 |
 | I18N 国际化 | 1 | 1 | 0 | 0 |
 | NET 隐私 | 1 | 0 | 1 | 0 |
 | REL 发布 | 9 | 2 | 7 | 0 |
-| QA 质量 | 4 | 0 | 4 | 0 |
-| **合计** | **51** | **17** | **33** | **1** |
+| QA 质量 | 4 | 3 | 1 | 0 |
+| **合计** | **51** | **22** | **29** | **0** |
 
 ## 明细
 
@@ -42,11 +42,11 @@
 | PL-11 | 10 万虚拟滚动 ≥55fps | 🟡 | 库页面与播放列表详情均已窗口化（`Library.tsx`、`PlaylistDetail.tsx`） | 未跑 10 万行 fps 基准 |
 | LIB-01 | 多目录/递归/排除/隐藏/重扫 | 🟡 | `scan_folder_controlled_filtered`、excludes、隐藏点文件 | Windows 隐藏属性不识别；无目录监听 |
 | LIB-02 | 全量+增量/进度/暂停/继续/断点 | 🟡 | `scan_bench` 1 万 11.35s、重扫 0.54s；暂停/继续单测 | 每文件一个事务；取消后需重输路径继续 |
-| LIB-04 | 6 视图 + 分页/虚拟 + 占位封面 | 🟡 | 歌曲/专辑/艺术家/流派/年代/文件夹路由；封面占位 | 无专辑艺术家视图；列表页未虚拟化 |
+| LIB-04 | 7 视图 + 分页/虚拟 + 占位封面 | 🟡 | 歌曲/专辑/艺术家/专辑艺术家/流派/年代/文件夹路由；封面占位；专辑艺术家由 schema v5 `album_artist` 聚合 | 除歌曲外的列表页未虚拟化，命令层无 limit/offset |
 | LIB-06 | 搜索 + 拼音 + 10 万 ≤100ms + 高亮 | 🟡 | FTS5 + bm25，`bench_100k` max 56ms；高亮仅字面匹配 | 拼音查询不高亮；搜索行曾缺 artist/album（已修 DTO） |
 | LIB-11 | WAL/迁移/幂等/崩溃可恢复 | ✅ | `tests/migrations.rs`；强杀进程后 integrity ok | — |
-| TAG-01 | ID3v1/v2/APEv2/Vorbis/MP4/WAV | 🟡 | lofty 读取 + 中文 ID3v2 测试 | 其余格式无 fixture；albumartist 未读 |
-| LRC-01 | 标准/增强/多标签/offset | 🟡 | 解析单测 + `[offset:-200]` → 800ms | 当前行误差未测；NowPlaying 不应用 offset |
+| TAG-01 | ID3v1/v2/APEv2/Vorbis/MP4/WAV | ✅ | `cargo test -p biu-library --test tag_formats`：6 类容器写入后扫描回读（含中文标题/艺术家/专辑与 albumartist）；ID3v1 用 Latin-1 ASCII | ID3v1 无 albumartist、无法存中文（格式限制） |
+| LRC-01 | 标准/增强/多标签/offset | ✅ | 解析单测 + `[offset:-200]` → 800ms；`activeLineIndex` 边界/偏移单测；播放页 100ms 插值，offset 生效 | 误差上界由 100ms 插值决定，未在真机音频上抽测 |
 | LRC-03 | 同名 .lrc + GBK/UTF-8 | ✅ | `biu-lyrics` 3 单测 + 占位不阻塞 | — |
 | LRC-05 | 滚动/高亮/点击跳转 | ✅ | `scrollIntoView` + 行按钮 `playerSeek` | 无 GUI 点击自动化 |
 | UI-01 | 侧栏/播放栏/折叠/调宽/持久化 | ✅ | `Shell.tsx` + `settingsUpdate` | 800×600 无截图基线 |
@@ -54,7 +54,7 @@
 | UI-08 | 无边框/置顶/透明度/尺寸记忆 | 🟡 | frameless 已持久化；window-state | 双屏 150% 未测 |
 | UI-09 | 托盘菜单/关闭到托盘/状态同步 | ✅ | `tray.rs` 六项菜单 + tooltip 同步 + 三语 | — |
 | UI-12 | 文件/文件夹拖放 + 高亮 | ✅ | `onDragDropEvent` + `.drop-overlay` | 多文件夹只扫第一个 |
-| UI-15 | 动画 60fps、CPU ≤3% | ⛔ | 仅静态检查 | 无 fps/CPU 基准与长稳数据 |
+| UI-15 | 动画 60fps、CPU ≤3% | 🟡 | `pnpm test:perf`（生产构建、10 万行）：滚动 60fps、DOM 行数 <80 | 播放 CPU ≤3% 与 8h 长稳需真机音频与时间，尚无数据 |
 | SYS-02 | 单实例 + 参数转交 | ✅ | single-instance 插件 + `startupArgs` | — |
 | SYS-10 | 便携模式 + 拷机恢复 | 🟡 | `portable.flag` → `<exe>/data` | 无创建入口；跨机拷贝未验证 |
 | DATA-01 | 三平台目录 + 卸载不删音乐 | ✅ | `paths.rs` + 单测 | — |
@@ -74,9 +74,9 @@
 | REL-07 | SHA256SUMS + 来源证明 | 🟡 | SHA256SUMS.txt | 无 attestation |
 | REL-08 | tag→draft→人工确认→发布+CHANGELOG | 🟡 | draft + CHANGELOG 正文 + tag/版本校验 | 无实际发布演练 |
 | REL-10 | CI 质量门 fmt/clippy/test/lint/typecheck/build | ✅ | ci.yml 增加 typecheck/lint/test/version | E2E 仅在 ubuntu 作业 |
-| QA-01 | 滚动日志 + 诊断包 + 脱敏 | 🟡 | 按天滚动 + zip 诊断包 | 未脱敏路径/用户名 |
-| QA-02 | panic 捕获/转储/下次提示 | 🟡 | `install_panic_hook` + `latest_crash` 横幅 | 无自动化测试 |
-| QA-03 | 单测 + 覆盖率达标 | 🟡 | 61 Rust + 4 Vitest + 6 Playwright | 无覆盖率工具与阈值执行 |
+| QA-01 | 滚动日志 + 诊断包 + 脱敏 | ✅ | 按天滚动 + zip 诊断包；`Redactor` 脱敏 data/cache/log 目录、用户名、家目录（含 `/` 与 JSON 转义变体）；测试断言 zip 内无原始路径 | 无日志保留期上限 |
+| QA-02 | panic 捕获/转储/下次提示 | ✅ | `install_panic_hook` 写 `crash-<millis>.log` + `latest_crash` 横幅；新增 catch_unwind 自动化用例 | 崩溃后自动恢复播放未做 |
+| QA-03 | 单测 + 覆盖率达标 | ✅ | Rust 62 + Vitest 16 + Playwright 7；`pnpm test:coverage` 对 `theme.ts`/`lyricsTiming.ts` 设 100% 阈值；CI 跑 `cargo llvm-cov`（audio/library/lyrics/core，实测行覆盖 66.44%，阈值 45） | 应用壳 crate 不做插桩（tauri 插桩测试会挂起），阈值按基线设定 |
 | QA-08 | README/构建指南/用户手册 | 🟡 | README/INSTALL/RELEASE 已更新 | 无独立用户手册 |
 
 ## 发布门禁（§7.5）判定

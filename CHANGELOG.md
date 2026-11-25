@@ -37,6 +37,10 @@
 - 托盘菜单、播放状态与 tooltip 支持简体中文/繁体中文/英文，切换语言立即生效；启动时按 `settings.json` 应用语言。
 - 发布产物统一为 `BiuPlayer_<version>_<os>_<arch>`，新增版本一致性检查（`pnpm check:version`，CI + 发布流程）；Release 正文从 CHANGELOG 对应版本段落提取。
 - 新增 51 项 MVP 验收矩阵（`docs/reports/mvp-acceptance-matrix.md`）、零出站静态审计（`docs/reports/privacy-egress.md`）与 8 小时长稳采样脚本（`scripts/soak.ps1`）。
+- 媒体库新增“专辑艺术家”视图：schema v5 增加 `tracks.album_artist`，扫描读取 `AlbumArtist` 标签，按专辑艺术家聚合并可进入详情页播放。
+- 标签格式夹具测试：ID3v1、ID3v2、APEv2、Vorbis Comments、MP4 atoms、WAV ID3 均由 lofty 写入后扫描回读（`cargo test -p biu-library --test tag_formats`）。
+- UI-15 基准：`pnpm test:perf` 在生产构建上以 10 万行媒体库测滚动帧率（本机 60fps、DOM 行数 <80）。
+- 覆盖率门禁：前端 `pnpm test:coverage`（`theme.ts`/`lyricsTiming.ts` 行覆盖阈值），CI 新增 `cargo llvm-cov` 行覆盖率作业（audio/library/lyrics/core，阈值 45，实测 66.44%）。
 
 ### Fixed
 
@@ -47,6 +51,8 @@
 - `cargo test -p biuplayer` 在 Windows 可运行：测试目标不再启用 `common-controls-v6`，避免未带 comctl32 v6 manifest 的测试二进制在加载 `TaskDialogIndirect` 时以 `STATUS_ENTRYPOINT_NOT_FOUND` 退出；CI 不再 `--exclude biuplayer`。
 - 设置页移除尚未实现的 Gapless、交叉淡化、列表密度与减少动效开关，并为“启动时最小化”标注需重启。
 - 搜索结果补齐艺术家与专辑字段（此前统一显示“未知艺术家/未知专辑”），并支持按文件名检索。
+- 诊断包与崩溃日志脱敏：数据/缓存/日志目录、用户名与家目录替换为占位符，settings.json 与日志同样处理；崩溃文件名改用毫秒时间戳，避免同秒 panic 互相覆盖。
+- 播放页歌词偏移真正生效，并以 100ms 插值推进当前行（此前固定 +80ms 且 `lyricsOffsetMs` 只在桌面歌词生效）。
 
 ### Planned
 

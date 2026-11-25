@@ -236,12 +236,41 @@ gapless/crossfade 属 §1 非目标却可调；list_density/reduce_motion/桌面
 | 8 | 发布工程 | 🟡 | `release.yml` 统一产物名 `BiuPlayer_<v>_<os>_<arch>`、版本从 `package.json` 注入、Release 正文取 CHANGELOG 对应段、tag/版本一致性校验；新增 `pnpm check:version` 并接入 CI | 无 tag、未实跑矩阵 |
 | 9 | 验收证据 | 🟡 | 新增 `docs/reports/mvp-acceptance-matrix.md`（51 项：17 ✅ / 33 🟡 / 1 ⛔）、`docs/reports/privacy-egress.md`、`scripts/soak.ps1`；README/INSTALL 产物名与便携数据目录纠偏 | 无抓包、无 8h 实测、无 fps/CPU 数据 |
 
-### 5.3 仍未闭环
+### 5.3 仍未闭环（截至第三轮）
 
 - **发布门禁**：0 个 tag、0 个 Release；三平台安装包与绿色版未在干净机实跑。
-- **UI-15 性能证据**：10 万行滚动 fps、播放 CPU ≤3%、8 小时长稳均未实测（脚本已备：`powershell -ExecutionPolicy Bypass -File scripts\soak.ps1 -Hours 8`）。
-- **QA-01/QA-02/QA-03**：诊断包未脱敏；崩溃恢复无自动化用例；覆盖率工具与阈值未接入 CI。
-- **LIB-04 / TAG-01**：无专辑艺术家视图；ID3v1/APEv2/Vorbis/MP4 atoms/WAV-ID3 无 fixture 验证。
-- **LRC-01**：当前行误差未测量，NowPlaying 未应用歌词偏移。
+- **UI-15 性能证据**：播放 CPU ≤3%、8 小时长稳未实测（fps 已在第四轮补齐）。
+- **LIB-04**：专辑/艺术家/流派/年代/文件夹列表页与详情页未虚拟化，命令层无 limit/offset。
 - 浅色主题仅静态截图与 `data-theme` 断言，500ms 无白闪需真机冷启动录屏。
 - 断点续播的恢复链路（真实音频设备 + 重启）未在真机执行。
+
+## 6. 第四轮：代码类缺口（2026-11-25）
+
+按“代码类缺口先做、发布门禁后置”的约定，本轮完成：
+
+| # | 项 | 状态 | 关键改动 | 证据 |
+| --- | --- | --- | --- | --- |
+| 1 | LRC-01 歌词时序 | ✅ | `src/lyricsTiming.ts`：`activeLineIndex` + `interpolatePosition`；播放页 100ms 插值推进并应用 `lyricsOffsetMs`（删除固定 +80ms） | `src/lyricsTiming.test.ts` 12 例 |
+| 2 | QA-01 诊断包脱敏 | ✅ | `diagnostics.rs` 新增 `Redactor`：data/cache/log 目录、用户名、家目录 → `<data-dir>`/`<cache-dir>`/`<log-dir>`/`<user>`/`<home>`，含反斜杠与 JSON 转义变体；settings.json、日志、system.json 全部经过 | 2 个单测断言 zip 内无原始路径 |
+| 3 | QA-02 崩溃自动化 | ✅ | panic 文件名改 `timestamp_millis()`；新增 `panic_hook_writes_crash_log_that_latest_crash_finds` | `cargo test -p biuplayer --lib diagnostics` |
+| 4 | LIB-04 专辑艺术家 | ✅ | schema v5：`tracks.album_artist` + 索引 + `AlbumArtist` 标签读取；`list_album_artists`/`album_artist_tracks`；新页面 `/library/album-artists` 与详情，侧栏入口 | `cargo test`、E2E 新增用例 |
+| 5 | TAG-01 格式夹具 | ✅ | `tests/tag_formats.rs` 用 lofty 写入 ID3v2/APEv2/Vorbis/MP4/WAV + ID3v1（Latin-1）后扫描回读 | 2 个用例覆盖 7 种组合 |
+| 6 | QA-03 覆盖率 | ✅ | 前端 `pnpm test:coverage`（v8，`theme.ts`/`lyricsTiming.ts` 100%）；CI 跑 `cargo llvm-cov -p biu-core -p biu-audio -p biu-library -p biu-lyrics --fail-under-lines 45` | 实测行覆盖 66.44%（audio 74.0 / library 89.1 / lyrics 70.7 / core 74.4） |
+| 7 | UI-15 fps | 🟡 | `e2e/perf.spec.ts` + `pnpm test:perf`：生产构建、10 万行、滚动 3s | 本机 60.0fps、DOM 行数 26；CPU/长稳仍缺 |
+
+结论：代码类 P0 缺口已清空；剩余项均依赖真机/多平台实测（发布门禁）或长时间采样，不再由代码改动推进。
+
+### 6.1 本轮验证记录（本机，2026-11-25）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm typecheck` / `pnpm lint` | 0 |
+| `pnpm test:coverage` | 通过；`theme.ts`、`lyricsTiming.ts` 行覆盖 100% |
+| `pnpm build` | 0（dist 453.30 kB JS / 26.81 kB CSS） |
+| `pnpm test:e2e` | 7/7 passed（含专辑艺术家导航） |
+| `pnpm test:perf` | 60.0fps，DOM 26 行，3s 滚动 43,440px |
+| `cargo fmt --all --check` / `cargo clippy --all-targets -D warnings` | 0 |
+| `cargo test --workspace` | 全部通过（含 `tag_formats`、`diagnostics`） |
+| `cargo llvm-cov -p biu-core -p biu-audio -p biu-library -p biu-lyrics` | 行覆盖 66.44%（阈值 45） |
+
+未能本机验证（按要求后置到发布门禁）：播放 CPU ≤3%、8h 长稳、三平台安装包、真实音频设备上的断点续播与设备拔插。
