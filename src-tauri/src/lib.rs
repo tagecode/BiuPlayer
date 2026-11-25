@@ -131,6 +131,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -175,6 +176,7 @@ pub fn run() {
             app.manage(guard);
             let database_file = paths.database_file.clone();
             let session_file = paths.data_dir.join("player-session.json");
+            let progress_file = paths.data_dir.join("player-progress.json");
             let settings_file = paths.settings_file.clone();
             let covers_dir = paths.data_dir.join("covers");
             app.manage(AppPathsState(paths));
@@ -182,6 +184,7 @@ pub fn run() {
             app.manage(commands::player::AudioQueueState(std::sync::Mutex::new(
                 crate::queue::AudioQueue::new(session_file),
             )));
+            app.manage(commands::player::AudioProgressState::new(progress_file));
             let library = match biu_library::Database::open(&database_file) {
                 Ok(mut database) => {
                     database.set_cover_dir(&covers_dir);
@@ -200,6 +203,7 @@ pub fn run() {
                 library,
                 database_file.clone(),
             ));
+            commands::player::restore_last_session(app.handle());
             commands::player::spawn_player_events(app.handle().clone());
             if let Err(err) = tray::setup_tray(app.handle()) {
                 tracing::warn!(error = %err, "failed to create tray icon");

@@ -286,6 +286,7 @@ fn track_dto(track: TrackListItem) -> LibraryTrackDto {
         duration_ms: track.duration_ms.map(|value| value as f64),
         format: track.format,
         path: track.path,
+        added_at: track.added_at,
     }
 }
 
@@ -361,18 +362,7 @@ pub fn library_search(
     let tracks = database
         .search(query, limit.min(200) as usize)
         .map_err(|err| CommandError::internal(err.to_string()))?;
-    Ok(tracks
-        .into_iter()
-        .map(|track| LibraryTrackDto {
-            id: track.id as f64,
-            title: track.title,
-            artist: None,
-            album: None,
-            duration_ms: None,
-            format: Some(track.format),
-            path: track.path,
-        })
-        .collect())
+    Ok(tracks.into_iter().map(track_dto).collect())
 }
 
 #[tauri::command]

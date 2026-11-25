@@ -112,6 +112,7 @@ pub fn settings_update(
     patch: SettingsPatch,
     state: State<'_, SettingsState>,
 ) -> Result<SettingsDto, CommandError> {
+    let language_changed = patch.language.is_some();
     let mut guard = state.settings.lock().unwrap();
     let settings = &mut *guard;
 
@@ -226,9 +227,15 @@ pub fn settings_update(
         }
         settings.lyrics.desktop_color = value;
     }
+    if let Some(value) = patch.frameless {
+        settings.ui.frameless = value;
+    }
 
     biu_core::save_settings(&state.path, settings)
         .map_err(|err| CommandError::internal(err.to_string()))?;
+    if language_changed {
+        crate::tray::apply_language(&app, &settings.general.language);
+    }
     let dto = SettingsDto::from(&*settings);
     let _ = app.emit("settings:changed", ());
     Ok(dto)

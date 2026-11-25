@@ -23,6 +23,15 @@ pub struct AudioPlayerState {
 
 pub struct AudioQueueState(pub Mutex<AudioQueue>);
 
+/// Playback position of the last session, persisted for Mvp A1-05.
+pub struct AudioProgressState(pub Mutex<crate::queue::ProgressStore>);
+
+impl AudioProgressState {
+    pub fn new(file: std::path::PathBuf) -> Self {
+        Self(Mutex::new(crate::queue::ProgressStore::new(file)))
+    }
+}
+
 fn lock(state: &AudioPlayerState) -> std::sync::MutexGuard<'_, Option<Player>> {
     state
         .player
@@ -522,6 +531,84 @@ pub fn player_set_device(
     Ok(snapshot(&state, &queue))
 }
 
+/// Restores the last track and position at startup (Mvp A1-05). Runs before
+/// the event loop starts so the first `player:state` already reports the
+/// restored track. Failures are logged and leave the app idle.
+pub fn restore_last_session(app: &AppHandle) {
+    let settings = {
+        let state = app.state::<crate::commands::settings::SettingsState>();
+        let guard = state
+            .settings
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.clone()
+    };
+    if !settings.playback.resume_on_start {
+        return;
+    }
+    let progress = {
+        let state = app.state::<AudioProgressState>();
+        let guard = state
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match guard.load() {
+            Some(progress) => progress,
+            None => return,
+        }
+    };
+
+    let queue_state = app.state::<AudioQueueState>();
+    let index = queue_lock(&queue_state)
+        .items()
+        .iter()
+        .position(|item| item.path == progress.path);
+    let Some(index) = index else {
+        tracing::info!(path = %progress.path, "resume skipped: track not in queue");
+        return;
+    };
+
+    let player_state = app.state::<AudioPlayerState>();
+    let device = (settings.audio.device_id != "default").then(|| settings.audio.device_id.clone());
+    *player_state
+        .device
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = device.clone();
+    queue_lock(&queue_state).set_index(index);
+
+    let result = (|| -> Result<(), String> {
+        let player = Player::with_device(device.as_deref()).map_err(|err| err.to_string())?;
+        player.load(Path::new(&progress.path));
+        for _ in 0..50 {
+            if player.snapshot().state != PlaybackState::Loading {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if queue_lock(&queue_state).muted() {
+            player.set_volume(0.0);
+        }
+        if progress.position_ms > 0.0 {
+            player.seek_ms(progress.position_ms.round() as u64);
+        }
+        if progress.playing {
+            player.play();
+        }
+        *lock(&player_state) = Some(player);
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => tracing::info!(
+            path = %progress.path,
+            position_ms = progress.position_ms,
+            playing = progress.playing,
+            "restored previous playback"
+        ),
+        Err(err) => tracing::warn!(error = %err, "cannot restore previous playback"),
+    }
+}
+
 /// Emits `player:state` at ~4 Hz. Handles EOF auto-advance, bad-file skipping
 /// (up to three consecutive failures) and output-device loss recovery.
 pub fn spawn_player_events(app: AppHandle) {
@@ -533,6 +620,18 @@ pub fn spawn_player_events(app: AppHandle) {
             let player_state = app.state::<AudioPlayerState>();
             let queue_state = app.state::<AudioQueueState>();
             let current = snapshot(&player_state, &queue_state);
+
+            if matches!(current.state.as_str(), "playing" | "paused") {
+                if let Some(path) = current.path.as_deref() {
+                    let playing = current.state == "playing";
+                    let progress_state = app.state::<AudioProgressState>();
+                    progress_state
+                        .0
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .update(path, current.position_ms, playing);
+                }
+            }
 
             if current.device_lost {
                 if last_recovery.elapsed() >= Duration::from_secs(2) {

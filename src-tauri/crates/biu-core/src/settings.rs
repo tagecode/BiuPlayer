@@ -228,8 +228,9 @@ pub struct LoadedSettings {
 
 /// Load `path`, recovering from missing/corrupt files.
 ///
-/// A corrupt file is renamed to `settings.corrupt.<unix-seconds>.json` before
-/// defaults are returned. A newer `schemaVersion` is treated as read-only.
+/// A corrupt file is renamed to `settings.json.bak` before defaults are
+/// returned (a timestamped `settings.corrupt.<unix-seconds>.json` name is used
+/// if that rename fails). A newer `schemaVersion` is treated as read-only.
 pub fn load_settings(path: &Path) -> LoadedSettings {
     let raw = match fs::read_to_string(path) {
         Ok(raw) => raw,
@@ -311,20 +312,50 @@ pub fn save_settings(path: &Path, settings: &Settings) -> std::io::Result<()> {
         }
     }
 
-    #[cfg(windows)]
-    if path.exists() {
-        // std::fs::rename cannot replace an existing file on Windows.
-        fs::remove_file(path)?;
-    }
-
-    if let Err(err) = fs::rename(&tmp, path) {
+    if let Err(err) = replace_file(&tmp, path) {
         let _ = fs::remove_file(&tmp);
         return Err(err);
     }
     Ok(())
 }
 
+/// Replace `path` with `tmp` without ever deleting the destination first.
+///
+/// `std::fs::rename` maps to `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` on
+/// Windows, so it already replaces an existing file. Older/edge cases that
+/// fail with the destination present are handled by moving the old file aside
+/// and restoring it if the second rename still fails, so a crash can never
+/// leave the user without a settings file (or its `.bak`).
+fn replace_file(tmp: &Path, path: &Path) -> std::io::Result<()> {
+    match fs::rename(tmp, path) {
+        Ok(()) => Ok(()),
+        Err(_) if path.exists() => {
+            let aside = path.with_extension(format!("json.old.{}", std::process::id()));
+            fs::rename(path, &aside)?;
+            match fs::rename(tmp, path) {
+                Ok(()) => {
+                    let _ = fs::remove_file(&aside);
+                    Ok(())
+                }
+                Err(second) => {
+                    let _ = fs::rename(&aside, path);
+                    Err(second)
+                }
+            }
+        }
+        Err(err) => Err(err),
+    }
+}
+
 fn quarantine_corrupt(path: &Path) -> PathBuf {
+    // Mvp DATA-02 asks for the damaged payload to be preserved next to the
+    // settings file. `settings.json.bak` is the documented name; a timestamped
+    // fallback is used when a good `.bak` already exists (we must not destroy
+    // the last known-good backup) or the rename fails (e.g. file is locked).
+    let bak = path.with_extension("json.bak");
+    if !bak.exists() && fs::rename(path, &bak).is_ok() {
+        return bak;
+    }
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -417,18 +448,14 @@ mod tests {
 
         let loaded = load_settings(&path);
 
+        let bak = path.with_extension("json.bak");
         assert!(!path.exists());
+        assert_eq!(fs::read_to_string(&bak).unwrap(), "{ not json");
         assert!(matches!(
             loaded.warning,
             Some(SettingsWarning::Corrupt { .. })
         ));
         assert_eq!(loaded.settings.schema_version, CURRENT_SCHEMA_VERSION);
-        let corrupt_files = fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().contains(".corrupt."))
-            .count();
-        assert_eq!(corrupt_files, 1);
     }
 
     #[test]

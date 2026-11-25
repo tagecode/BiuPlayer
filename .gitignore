@@ -31,3 +31,16 @@ src-tauri/gen/schemas
 test-results
 playwright-report
 blob-report
+
+# Local build scratch (TMP redirect for esbuild/link)
+.tmp-build
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Local agent/tooling state
+.codegraph/
+.cursor/

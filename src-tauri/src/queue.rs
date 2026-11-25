@@ -293,6 +293,78 @@ fn load_session(path: &Path) -> Option<Session> {
     serde_json::from_slice(&bytes).ok()
 }
 
+/// Playback position persisted independently from the queue so that writing it
+/// once per second never rewrites a 10k-item queue file (Mvp A1-05).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Progress {
+    pub path: String,
+    pub position_ms: f64,
+    pub playing: bool,
+}
+
+pub struct ProgressStore {
+    file: PathBuf,
+    last: Progress,
+    last_write: Option<std::time::Instant>,
+}
+
+impl ProgressStore {
+    pub fn new(file: PathBuf) -> Self {
+        let last = std::fs::read(&file)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Progress>(&bytes).ok())
+            .unwrap_or_default();
+        Self {
+            file,
+            last,
+            last_write: None,
+        }
+    }
+
+    /// Returns the stored progress when it points at a non-empty path.
+    pub fn load(&self) -> Option<Progress> {
+        (!self.last.path.is_empty()).then(|| self.last.clone())
+    }
+
+    /// Records the live position. The file is rewritten when the track or the
+    /// playing flag changes, at most once per second while playing, and on a
+    /// paused seek (where the position jumps without playback advancing).
+    pub fn update(&mut self, path: &str, position_ms: f64, playing: bool) {
+        let position_ms = position_ms.max(0.0);
+        let same_track = self.last.path == path && self.last.playing == playing;
+        let seeked_while_paused =
+            !playing && same_track && (position_ms - self.last.position_ms).abs() >= 500.0;
+        let due = self
+            .last_write
+            .map(|instant| instant.elapsed() >= std::time::Duration::from_secs(1))
+            .unwrap_or(true);
+        self.last = Progress {
+            path: path.to_string(),
+            position_ms,
+            playing,
+        };
+        if !same_track || seeked_while_paused || (playing && due) {
+            self.save();
+        }
+    }
+
+    fn save(&mut self) {
+        let Ok(json) = serde_json::to_vec_pretty(&self.last) else {
+            return;
+        };
+        if let Some(parent) = self.file.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let temporary = self.file.with_extension("json.tmp");
+        if std::fs::write(&temporary, json).is_ok()
+            && std::fs::rename(&temporary, &self.file).is_ok()
+        {
+            self.last_write = Some(std::time::Instant::now());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,5 +449,41 @@ mod tests {
         assert_eq!(restored.items().len(), 2);
         assert_eq!(restored.index(), Some(1));
         assert_eq!(restored.mode(), PlayMode::Shuffle);
+    }
+
+    #[test]
+    fn progress_store_roundtrip() {
+        let path = std::env::temp_dir().join(format!(
+            "biu-progress-test-{}-{}.json",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut store = ProgressStore::new(path.clone());
+        assert!(store.load().is_none());
+        store.update("/tmp/a.mp3", 12_500.0, true);
+        let restored = ProgressStore::new(path.clone());
+        let progress = restored.load().expect("progress written");
+        assert_eq!(progress.path, "/tmp/a.mp3");
+        assert_eq!(progress.position_ms, 12_500.0);
+        assert!(progress.playing);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn progress_persists_paused_seek() {
+        let path = std::env::temp_dir().join(format!(
+            "biu-progress-seek-test-{}-{}.json",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut store = ProgressStore::new(path.clone());
+        store.update("/tmp/a.mp3", 1_000.0, false);
+        store.update("/tmp/a.mp3", 9_000.0, false);
+        let progress = ProgressStore::new(path.clone())
+            .load()
+            .expect("seek written");
+        assert_eq!(progress.position_ms, 9_000.0);
+        assert!(!progress.playing);
+        let _ = std::fs::remove_file(path);
     }
 }

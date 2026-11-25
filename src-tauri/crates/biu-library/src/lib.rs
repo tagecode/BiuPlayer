@@ -292,14 +292,6 @@ fn album_id(
 }
 
 #[derive(Debug, Clone)]
-pub struct TrackRow {
-    pub id: i64,
-    pub title: String,
-    pub path: String,
-    pub format: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct TrackListItem {
     pub id: i64,
     pub title: String,
@@ -308,6 +300,7 @@ pub struct TrackListItem {
     pub duration_ms: Option<i64>,
     pub format: Option<String>,
     pub path: String,
+    pub added_at: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1049,23 +1042,29 @@ impl Database {
         Ok(ScanOutcome::Completed(report))
     }
 
-    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<TrackRow>, LibraryError> {
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<TrackListItem>, LibraryError> {
         let match_query = fts_query(query);
         if match_query.is_empty() {
             return Ok(Vec::new());
         }
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.title, t.path, COALESCE(t.format, '')
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at, t.added_at
              FROM tracks_fts f JOIN tracks t ON t.id = f.rowid
+             LEFT JOIN artists ar ON ar.id = t.artist_id
+             LEFT JOIN albums al ON al.id = t.album_id
              WHERE tracks_fts MATCH ?1
              ORDER BY bm25(tracks_fts) LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![match_query, limit as i64], |row| {
-            Ok(TrackRow {
+            Ok(TrackListItem {
                 id: row.get(0)?,
                 title: row.get(1)?,
-                path: row.get(2)?,
-                format: row.get(3)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                duration_ms: row.get(4)?,
+                format: row.get(5)?,
+                path: row.get(6)?,
+                added_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -1101,7 +1100,7 @@ impl Database {
         };
         let direction = if descending { "DESC" } else { "ASC" };
         let sql = format!(
-            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
              FROM tracks t
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
@@ -1119,6 +1118,7 @@ impl Database {
                 duration_ms: row.get(4)?,
                 format: row.get(5)?,
                 path: row.get(6)?,
+                added_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -1240,7 +1240,7 @@ impl Database {
             _ => return Err(LibraryError::InvalidArgument("unknown filter".into())),
         };
         let sql = format!(
-            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
              FROM tracks t
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
@@ -1257,6 +1257,7 @@ impl Database {
                 duration_ms: row.get(4)?,
                 format: row.get(5)?,
                 path: row.get(6)?,
+                added_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -1367,7 +1368,7 @@ impl Database {
     pub fn playlist_items(&self, id: i64) -> Result<Vec<PlaylistItem>, LibraryError> {
         let mut stmt = self.conn.prepare(
             "SELECT pi.position, t.id, t.title, ar.name, al.title,
-                    t.duration_ms, t.format, t.path
+                    t.duration_ms, t.format, t.path, t.added_at
              FROM playlist_items pi
              JOIN tracks t ON t.id = pi.track_id
              LEFT JOIN artists ar ON ar.id = t.artist_id
@@ -1386,6 +1387,7 @@ impl Database {
                     duration_ms: row.get(5)?,
                     format: row.get(6)?,
                     path: row.get(7)?,
+                    added_at: row.get(8)?,
                 },
             })
         })?;
@@ -1689,7 +1691,7 @@ impl Database {
 
     pub fn album_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
              FROM tracks t
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
@@ -1705,6 +1707,7 @@ impl Database {
                 duration_ms: row.get(4)?,
                 format: row.get(5)?,
                 path: row.get(6)?,
+                added_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -1738,7 +1741,7 @@ impl Database {
 
     pub fn artist_tracks(&self, id: i64) -> Result<Vec<TrackListItem>, LibraryError> {
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path
+            "SELECT t.id, t.title, ar.name, al.title, t.duration_ms, t.format, t.path, t.added_at
              FROM tracks t
              LEFT JOIN artists ar ON ar.id = t.artist_id
              LEFT JOIN albums al ON al.id = t.album_id
@@ -1754,6 +1757,7 @@ impl Database {
                 duration_ms: row.get(4)?,
                 format: row.get(5)?,
                 path: row.get(6)?,
+                added_at: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();

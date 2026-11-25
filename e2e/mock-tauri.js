@@ -1,4 +1,5 @@
 /* Minimal Tauri IPC mock for browser E2E. Not shipped with the app. */
+/* global window */
 (() => {
   const tracks = [
     { id: 1, title: "晴天", artist: "周杰伦", album: "叶惠美", duration_ms: 269000, format: "MP3", path: "/music/qing tian.mp3" },
@@ -163,7 +164,7 @@
     lyrics_load: () => ({ title: "晴天", artist: "周杰伦", offset_ms: 0, lines: [{ timeMs: 0, text: "故事的小黄花" }, { timeMs: 5000, text: "从出生那年就飘着" }] }),
     desktop_lyrics_toggle: () => true,
     playlist_list: () => clone(playlists),
-    playlist_items: ({ id }) => clone(tracks.slice(0, 2).map((track, position) => ({ position, track }))),
+    playlist_items: () => clone(tracks.slice(0, 2).map((track, position) => ({ position, track }))),
     playlist_create: ({ name }) => { const id = playlists.length + 1; playlists.push({ id, name, track_count: 0 }); return id; },
     playlist_rename: ({ id, name }) => { const p = playlists.find((x) => x.id === id); if (p) p.name = name; return null; },
     playlist_delete: ({ id }) => { const i = playlists.findIndex((x) => x.id === id); if (i >= 0) playlists.splice(i, 1); return null; },

@@ -11,6 +11,7 @@ import {
 } from "./bindings";
 import { useI18n, type Lang, type MessageKey } from "./i18n";
 import { applyFrameless, applyOpacity } from "./window";
+import { applyTheme, resolveTheme } from "./theme";
 
 const nav: { to: string; labelKey: MessageKey; icon: string; end?: boolean }[] = [
   { to: "/", labelKey: "nav.nowPlaying", icon: "▶", end: true },
@@ -38,8 +39,9 @@ const modeKey: Record<PlayMode, MessageKey> = {
 type Theme = "dark" | "light";
 
 function initialTheme(): Theme {
-  const saved = localStorage.getItem("biu.theme");
-  return saved === "light" ? "light" : "dark";
+  // `initTheme()` already resolved the stored mode before React mounted; the
+  // inline bootstrap in index.html did the same for the very first paint.
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
 function formatTime(ms: number | null | undefined): string {
@@ -91,6 +93,15 @@ export function Shell() {
         const opacity = Math.min(1, Math.max(0.7, settings.opacity ?? 1));
         document.documentElement.style.setProperty("--ui-opacity", String(opacity));
         void getCurrentWindow().setAlwaysOnTop(Boolean(settings.alwaysOnTop)).catch(() => {});
+        // settings.json is the source of truth (portable installs keep it next
+        // to the executable), so re-apply it instead of trusting localStorage.
+        applyTheme(settings.theme);
+        setTheme(
+          resolveTheme(
+            settings.theme,
+            window.matchMedia("(prefers-color-scheme: dark)").matches,
+          ),
+        );
       })
       .catch(() => {});
   }, []);
@@ -164,6 +175,24 @@ export function Shell() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("biu.theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const value = (event as CustomEvent).detail;
+      if (value === "light" || value === "dark") setTheme(value);
+    };
+    window.addEventListener("biu:theme", sync);
+    return () => window.removeEventListener("biu:theme", sync);
+  }, []);
+
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    setTheme(next);
+    void commands.settingsUpdate({ theme: next }).catch((error) => {
+      setNotice(formatError(error, t));
+    });
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -417,8 +446,9 @@ export function Shell() {
             <option value="zh-TW">繁體中文</option>
             <option value="en">English</option>
           </select>
-          <button className="ghost" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? t("theme.toLight") : t("theme.toDark")}
+          <button className="ghost theme-toggle" onClick={toggleTheme} title={theme === "dark" ? t("theme.toLight") : t("theme.toDark")}>
+            <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
+            <span className="theme-label">{theme === "dark" ? t("theme.toLight") : t("theme.toDark")}</span>
           </button>
           <span className="muted">{t("app.version")}</span>
         </div>

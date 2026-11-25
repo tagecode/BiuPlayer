@@ -15,6 +15,10 @@ function formatDuration(ms: number | null): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+const ROW_HEIGHT = 38;
+const VIEWPORT_HEIGHT = 520;
+const OVERSCAN = 8;
+
 function toQueueItem(item: PlaylistItemDto_Serialize): QueueItemDto_Serialize {
   return {
     path: item.track.path,
@@ -41,6 +45,11 @@ export function PlaylistDetail() {
   const [history, setHistory] = useState<PlaylistItemDto_Serialize[][]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const end = Math.min(items.length, start + Math.ceil(VIEWPORT_HEIGHT / ROW_HEIGHT) + OVERSCAN * 2);
+  const visible = items.slice(start, end);
 
   const refresh = useCallback(async () => {
     if (!Number.isFinite(playlistId)) return;
@@ -56,6 +65,10 @@ export function PlaylistDetail() {
   useEffect(() => {
     refresh().catch((error) => setMessage(formatError(error, t)));
   }, [refresh, t]);
+
+  useEffect(() => {
+    setScrollTop(0);
+  }, [playlistId]);
 
   const queueItems = useMemo(() => toQueue(items), [items]);
 
@@ -230,6 +243,11 @@ export function PlaylistDetail() {
           <Link to="/library">{t("common.openLibrary")}</Link>
         </div>
       ) : (
+        <div
+          className="playlist-scroll"
+          style={{ height: Math.min(VIEWPORT_HEIGHT, items.length * ROW_HEIGHT + 44) }}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        >
         <table className="track-table playlist-table">
           <thead>
             <tr>
@@ -245,7 +263,14 @@ export function PlaylistDetail() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => (
+            {start > 0 && (
+              <tr className="spacer-row" aria-hidden="true">
+                <td colSpan={7} style={{ height: start * ROW_HEIGHT }} />
+              </tr>
+            )}
+            {visible.map((item, offset) => {
+              const index = start + offset;
+              return (
               <tr
                 key={`${item.track.id}-${index}`}
                 className={`${dragOver === index ? "drop-target" : ""} ${selected.has(index) ? "selected-row" : ""}`}
@@ -300,9 +325,16 @@ export function PlaylistDetail() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
+            {end < items.length && (
+              <tr className="spacer-row" aria-hidden="true">
+                <td colSpan={7} style={{ height: (items.length - end) * ROW_HEIGHT }} />
+              </tr>
+            )}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

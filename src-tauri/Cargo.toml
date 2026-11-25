@@ -24,8 +24,23 @@ biu-audio = { path = "crates/biu-audio" }
 biu-library = { path = "crates/biu-library" }
 biu-lyrics = { path = "crates/biu-lyrics" }
 biu-ipc = { path = "crates/biu-ipc" }
-tauri = { version = "2", features = ["tray-icon"] }
+# `common-controls-v6` (a default Tauri feature) makes tauri-runtime-wry
+# import `TaskDialogIndirect`, which only resolves when the process carries a
+# comctl32 v6 side-by-side manifest. The app binary gets one from tauri-build,
+# but cargo's test harness does not, so `cargo test` died with
+# STATUS_ENTRYPOINT_NOT_FOUND before running a single test. Dropping the
+# feature falls back to `MessageBoxW` for Tauri's own error dialog and keeps
+# the whole test suite runnable on Windows.
+tauri = { version = "2", default-features = false, features = [
+    "wry",
+    "compression",
+    "dynamic-acl",
+    "x11",
+    "dbus",
+    "tray-icon",
+] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
@@ -41,7 +56,7 @@ base64 = "0.22"
 
 [dev-dependencies]
 lofty = "0.22"
-tauri = { version = "2", features = ["test"] }
+tauri = { version = "2", default-features = false, features = ["test"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

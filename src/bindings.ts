@@ -206,6 +206,7 @@ export type LibraryTrackDto_Deserialize = {
 	duration_ms?: number | null,
 	format?: string | null,
 	path: string,
+	added_at?: string | null,
 };
 
 export type LibraryTrackDto_Serialize = {
@@ -216,6 +217,7 @@ export type LibraryTrackDto_Serialize = {
 	duration_ms: number | null,
 	format: string | null,
 	path: string,
+	added_at: string | null,
 };
 
 export type LyricLineDto = {

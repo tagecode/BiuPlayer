@@ -55,3 +55,16 @@ test("playlist detail shows seeded playlist and tracks", async ({ page }) => {
   await page.getByText("通勤").click();
   await expect(page.locator(".track-table tbody tr")).toHaveCount(2);
 });
+
+test("theme toggle flips data-theme and persists the mode", async ({ page }) => {
+  await page.goto("/");
+  const html = page.locator("html");
+  const initial = await html.getAttribute("data-theme");
+  await page.locator(".theme-toggle").click();
+  await expect(html).toHaveAttribute("data-theme", initial === "light" ? "dark" : "light");
+  const mode = await page.evaluate(() => localStorage.getItem("biu.themeMode"));
+  expect(mode).toBe(initial === "light" ? "dark" : "light");
+
+  await page.locator(".theme-toggle").click();
+  await expect(html).toHaveAttribute("data-theme", initial ?? "dark");
+});

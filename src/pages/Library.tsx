@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   commands,
   type LibraryScanStatusDto_Serialize,
@@ -172,8 +173,8 @@ export function Library() {
     }
   }
 
-  async function startScan() {
-    const path = folder.trim();
+  async function startScan(pathOverride?: string) {
+    const path = (pathOverride ?? folder).trim();
     if (!path) {
       setMessage(t("library.pathRequired"));
       return;
@@ -182,6 +183,18 @@ export function Library() {
       const status = await commands.libraryScanStart(path);
       setScan(status);
       setMessage(t("library.scanning"));
+    } catch (error) {
+      setMessage(formatError(error, t));
+    }
+  }
+
+  async function pickFolder() {
+    try {
+      const picked = await open({ directory: true, multiple: false, title: t("library.addHeading") });
+      if (typeof picked === "string" && picked.length > 0) {
+        setFolder(picked);
+        await startScan(picked);
+      }
     } catch (error) {
       setMessage(formatError(error, t));
     }
@@ -307,7 +320,10 @@ export function Library() {
             onChange={(event) => setFolder(event.target.value)}
             disabled={busy}
           />
-          <button type="button" onClick={startScan} disabled={busy || scan?.state === "paused"}>
+          <button type="button" className="ghost" onClick={pickFolder} disabled={busy}>
+            {t("library.pickFolder")}
+          </button>
+          <button type="button" onClick={() => void startScan()} disabled={busy || scan?.state === "paused"}>
             {busy ? t("library.scanning") : t("library.addScan")}
           </button>
           {scan?.state === "scanning" && (
@@ -436,22 +452,23 @@ export function Library() {
                   ["title", t("common.title")],
                   ["artist", t("common.artist")],
                   ["album", t("common.album")],
+                  ["added", t("common.addedAt")],
                   ["duration", t("common.duration")],
+                  ["path", t("common.path")],
                   ["manual", t("library.manualSort")],
                 ] as Array<[TrackSort, string]>
               ).map(([column, label]) => (
                 <button
                   key={column}
                   type="button"
-                  className="track-sort"
+                  className={`track-sort sort-${column}`}
                   onClick={() => changeSort(column)}
                 >
                   {label}
                   {sortMark(column)}
                 </button>
               ))}
-              <span className="mono">{t("common.format")}</span>
-              <span aria-hidden="true" />
+              <span className="mono track-format-head">{t("common.format")}</span>
             </div>
             <div
               className="track-scroll"
@@ -494,9 +511,15 @@ export function Library() {
                           <span>
                             <HighlightText text={track.album ?? t("common.unknownAlbum")} query={query} />
                           </span>
+                          <span className="mono track-added">
+                            {track.added_at ? track.added_at.slice(0, 10) : "-"}
+                          </span>
                           <span className="mono">{formatDuration(track.duration_ms)}</span>
                           <span className="mono">
                             {track.format?.toUpperCase() ?? "-"}
+                          </span>
+                          <span className="mono track-path" title={track.path}>
+                            {track.path}
                           </span>
                           <span className="row-actions">
                             {sort === "manual" && (

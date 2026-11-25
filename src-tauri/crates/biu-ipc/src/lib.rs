@@ -199,6 +199,7 @@ pub struct LibraryTrackDto {
     pub duration_ms: Option<f64>,
     pub format: Option<String>,
     pub path: String,
+    pub added_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

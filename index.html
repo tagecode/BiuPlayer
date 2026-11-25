@@ -2,7 +2,24 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    
+    <script>
+      (() => {
+        try {
+          const mode = localStorage.getItem("biu.themeMode") || "system";
+          const dark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          const theme = dark ? "dark" : "light";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.backgroundColor = dark
+            ? "#0d0f14"
+            : "#f6f7f9";
+        } catch (_) {
+          // localStorage may be unavailable; the app still resolves the theme.
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>博音 BiuPlayer</title>
   </head>

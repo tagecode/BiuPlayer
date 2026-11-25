@@ -30,6 +30,23 @@
 - 全局播放栏停止按钮。
 - 设置页“关于”：版本、系统、Tauri 版本、检查更新、开源许可；新增 MIT LICENSE。
 - Windows 绿色版写入 `portable.flag`，便携模式生效。
+- 断点续播：常驻保存当前曲目、进度与播放状态（`player-progress.json`，最多每秒一次），启动后按设置恢复曲目、进度、输出设备与播放状态。
+- 前端质量门：`pnpm typecheck`、`pnpm lint`（ESLint + typescript-eslint）、`pnpm test`（Vitest），CI 三个平台同步执行。
+- 媒体库列表新增“添加时间”“路径”两列与排序入口，补齐 7 列排序；空目录输入框旁新增“浏览…”原生目录选择器。
+- 播放列表详情页改为窗口化渲染，万级列表不再一次性挂载全部行。
+- 托盘菜单、播放状态与 tooltip 支持简体中文/繁体中文/英文，切换语言立即生效；启动时按 `settings.json` 应用语言。
+- 发布产物统一为 `BiuPlayer_<version>_<os>_<arch>`，新增版本一致性检查（`pnpm check:version`，CI + 发布流程）；Release 正文从 CHANGELOG 对应版本段落提取。
+- 新增 51 项 MVP 验收矩阵（`docs/reports/mvp-acceptance-matrix.md`）、零出站静态审计（`docs/reports/privacy-egress.md`）与 8 小时长稳采样脚本（`scripts/soak.ps1`）。
+
+### Fixed
+
+- `settings.json` 在 Windows 上不再先删后改名：改为 rename 失败时把旧文件移到旁路并回滚，避免写入中断丢失配置；损坏配置按验收要求备份为 `settings.json.bak`。
+- 无边框开关现在会写入设置并在重启后恢复（此前 `settings_update` 丢弃 `frameless` 字段）。
+- 主题切换与设置页、系统主题保持同步，并回写 `settings.json`；首帧由 `index.html` 内联脚本决定主题，避免浅色主题启动时闪深色。
+- 浅色主题补齐全部语义色变量与硬编码颜色，侧栏边框、hover、输入框、卡片与封面不再残留深色值。
+- `cargo test -p biuplayer` 在 Windows 可运行：测试目标不再启用 `common-controls-v6`，避免未带 comctl32 v6 manifest 的测试二进制在加载 `TaskDialogIndirect` 时以 `STATUS_ENTRYPOINT_NOT_FOUND` 退出；CI 不再 `--exclude biuplayer`。
+- 设置页移除尚未实现的 Gapless、交叉淡化、列表密度与减少动效开关，并为“启动时最小化”标注需重启。
+- 搜索结果补齐艺术家与专辑字段（此前统一显示“未知艺术家/未知专辑”），并支持按文件名检索。
 
 ### Planned
 

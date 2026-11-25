@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { commands } from "./bindings";
 
 export type Lang = "zh-CN" | "zh-TW" | "en";
 
 const zhCN = {
   "app.name": "博音",
   "app.tagline": "BiuPlayer",
-  "app.version": "v0.1.0 · M0",
+  "app.version": "v0.1.0",
   "nav.nowPlaying": "正在播放",
   "nav.library": "媒体库",
   "nav.albums": "专辑",
@@ -112,6 +113,7 @@ const zhCN = {
   "settings.theme.dark": "深色",
   "settings.theme.light": "浅色",
   "settings.startMinimized": "启动时最小化到托盘",
+  "settings.restartRequired": "需重启",
   "settings.outputDevice": "输出设备",
   "settings.defaultDevice": "系统默认",
   "settings.defaultTag": "（默认）",
@@ -152,6 +154,8 @@ const zhCN = {
   "common.album": "专辑",
   "common.duration": "时长",
   "common.format": "格式",
+  "common.addedAt": "添加时间",
+  "common.path": "路径",
   "common.unknownAlbum": "未知专辑",
   "common.tracksSuffix": "首",
   "common.albumsSuffix": "张",
@@ -216,6 +220,7 @@ const zhCN = {
   "library.addHeading": "添加音乐目录",
   "library.addHint": "仅扫描，不移动或删除源文件",
   "library.addPlaceholder": "音乐目录绝对路径",
+  "library.pickFolder": "浏览…",
   "library.addScan": "添加并扫描",
   "library.pause": "暂停",
   "library.resume": "继续",
@@ -314,7 +319,7 @@ export type MessageKey = keyof typeof zhCN;
 const zhTW: Record<MessageKey, string> = {
   "app.name": "博音",
   "app.tagline": "BiuPlayer",
-  "app.version": "v0.1.0 · M0",
+  "app.version": "v0.1.0",
   "nav.nowPlaying": "正在播放",
   "nav.library": "媒體庫",
   "nav.albums": "專輯",
@@ -420,6 +425,7 @@ const zhTW: Record<MessageKey, string> = {
   "settings.theme.dark": "深色",
   "settings.theme.light": "淺色",
   "settings.startMinimized": "啟動時最小化到系統匣",
+  "settings.restartRequired": "需重啟",
   "settings.outputDevice": "輸出裝置",
   "settings.defaultDevice": "系統預設",
   "settings.defaultTag": "（預設）",
@@ -460,6 +466,8 @@ const zhTW: Record<MessageKey, string> = {
   "common.album": "專輯",
   "common.duration": "時長",
   "common.format": "格式",
+  "common.addedAt": "加入時間",
+  "common.path": "路徑",
   "common.unknownAlbum": "未知專輯",
   "common.tracksSuffix": "首",
   "common.albumsSuffix": "張",
@@ -524,6 +532,7 @@ const zhTW: Record<MessageKey, string> = {
   "library.addHeading": "加入音樂目錄",
   "library.addHint": "僅掃描，不移動或刪除來源檔案",
   "library.addPlaceholder": "音樂目錄絕對路徑",
+  "library.pickFolder": "瀏覽…",
   "library.addScan": "加入並掃描",
   "library.pause": "暫停",
   "library.resume": "繼續",
@@ -620,7 +629,7 @@ const zhTW: Record<MessageKey, string> = {
 const en: Record<MessageKey, string> = {
   "app.name": "BiuPlayer",
   "app.tagline": "BiuPlayer",
-  "app.version": "v0.1.0 · M0",
+  "app.version": "v0.1.0",
   "nav.nowPlaying": "Now Playing",
   "nav.library": "Library",
   "nav.albums": "Albums",
@@ -726,6 +735,7 @@ const en: Record<MessageKey, string> = {
   "settings.theme.dark": "Dark",
   "settings.theme.light": "Light",
   "settings.startMinimized": "Start minimized to tray",
+  "settings.restartRequired": "Restart required",
   "settings.outputDevice": "Output device",
   "settings.defaultDevice": "System default",
   "settings.defaultTag": " (default)",
@@ -766,6 +776,8 @@ const en: Record<MessageKey, string> = {
   "common.album": "Album",
   "common.duration": "Duration",
   "common.format": "Format",
+  "common.addedAt": "Added",
+  "common.path": "Path",
   "common.unknownAlbum": "Unknown album",
   "common.tracksSuffix": "tracks",
   "common.albumsSuffix": "albums",
@@ -830,6 +842,7 @@ const en: Record<MessageKey, string> = {
   "library.addHeading": "Add a music folder",
   "library.addHint": "Scan only; source files are never moved or deleted",
   "library.addPlaceholder": "Absolute music folder path",
+  "library.pickFolder": "Browse…",
   "library.addScan": "Add and scan",
   "library.pause": "Pause",
   "library.resume": "Resume",
@@ -940,6 +953,25 @@ function initialLang(): Lang {
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(initialLang);
+
+  // settings.json is the source of truth for the language (portable installs
+  // must keep it across machines); localStorage only bridges the first paint.
+  useEffect(() => {
+    let disposed = false;
+    commands
+      .settingsGet()
+      .then((settings) => {
+        if (disposed) return;
+        const next = settings.language;
+        if (next === "zh-CN" || next === "zh-TW" || next === "en") {
+          setLang(next);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;

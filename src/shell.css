@@ -3,12 +3,31 @@
   --panel: #ffffff;
   --panel-2: #f0f2f5;
   --line: #dfe3ea;
+  --border: var(--line);
+  --hover: var(--panel-2);
   --text: #1a1f2b;
   --muted: #677084;
   --accent: #0f9f7a;
   --accent-dim: #d9f5ec;
   --warn: #a86b00;
   --error: #c0392b;
+  --surface-0: #fbfcfe;
+  --surface-input: #ffffff;
+  --surface-hover: #e9edf4;
+  --card-end: #f7f9fc;
+  --chip-bg: rgba(240, 242, 245, 0.9);
+  --glow-a: #ddf2ea;
+  --glow-b: #e3e9fb;
+  --accent-contrast: #04241b;
+  --accent-border: #8fd4bd;
+  --warn-border: #e6cf9b;
+  --focus-border: #57b598;
+  --hover-border: #b9c3d4;
+  --code: #0a6b52;
+  --cover-a: #dfe8f6;
+  --cover-b: #eef1f6;
+  --cover-a-alt: #e3e9f4;
+  --cover-b-alt: #f1f3f7;
   color: var(--text);
   background: var(--bg);
 }
@@ -128,6 +147,14 @@ body {
   gap: 8px;
   padding: 8px;
   font-size: 12px;
+}
+
+.sidebar-foot .ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .main {
@@ -279,7 +306,7 @@ body {
   border-radius: 50%;
   border: 0;
   background: var(--accent);
-  color: #06281f;
+  color: var(--accent-contrast);
   font-size: 14px;
 }
 
@@ -386,7 +413,7 @@ body {
 .player-notice {
   margin: 0;
   padding: 6px 24px;
-  color: var(--danger, #f87171);
+  color: var(--error);
   font-size: 12px;
   border-top: 1px solid var(--line);
 }
@@ -458,6 +485,15 @@ body {
 
 @media (max-width: 860px) {
   .lang-select {
+    display: none;
+  }
+
+  .theme-toggle {
+    justify-content: center;
+    padding: 8px 0;
+  }
+
+  .theme-toggle .theme-label {
     display: none;
   }
 }
@@ -619,7 +655,7 @@ body {
 .library-playlist { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; font-size: 13px; }
 .library-playlist label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .library-playlist select { min-width: 180px; }
-.ghost.danger { color: #e5484d; }
+.ghost.danger { color: var(--error); }
 
 /* Now playing */
 .now-playing { display: flex; flex-direction: column; gap: 18px; }
@@ -630,7 +666,7 @@ body {
 }
 .np-cover {
   aspect-ratio: 1; border-radius: 14px; display: grid; place-items: center;
-  background: radial-gradient(circle at 30% 20%, #3b4a6b, #12151d 70%);
+  background: radial-gradient(circle at 30% 20%, var(--cover-a), var(--cover-b) 70%);
   border: 1px solid var(--border); font-size: 72px; font-weight: 700; color: var(--accent);
 }
 .np-meta h1 { margin: 6px 0 4px; font-size: clamp(24px, 4vw, 40px); line-height: 1.15; }
@@ -661,7 +697,7 @@ body {
 .album-card:hover { border-color: var(--accent); transform: translateY(-1px); }
 .album-cover {
   aspect-ratio: 1; border-radius: 8px; display: grid; place-items: center;
-  background: radial-gradient(circle at 35% 25%, #33405c, #11141b 75%);
+  background: radial-gradient(circle at 35% 25%, var(--cover-a-alt), var(--cover-b-alt) 75%);
   margin-bottom: 6px; font-size: 40px; font-weight: 700; color: var(--accent);
 }
 .artist-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
@@ -716,7 +752,9 @@ body {
 .track-head,
 .track-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 64px 60px 150px;
+  grid-template-columns:
+    minmax(0, 2.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 88px 64px 56px
+    minmax(0, 1.2fr) 150px;
   gap: 8px;
   align-items: center;
   padding: 0 10px;
@@ -731,6 +769,26 @@ body {
   top: 0;
   background: var(--panel);
   z-index: 1;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.track-head .track-format-head {
+  margin-left: auto;
+}
+
+@media (max-width: 1100px) {
+  .track-row {
+    grid-template-columns:
+      minmax(0, 2.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 64px 56px 150px;
+  }
+  .track-added,
+  .track-path,
+  .sort-added,
+  .sort-path {
+    display: none;
+  }
 }
 
 .track-sort {
@@ -865,6 +923,25 @@ body {
 .playlist-table tbody tr.drop-target {
   outline: 1px dashed var(--accent);
   outline-offset: -2px;
+}
+
+.playlist-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.playlist-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.playlist-scroll .spacer-row td {
+  padding: 0;
+  border: 0;
 }
 
 .context-menu {
@@ -1027,7 +1104,7 @@ body {
   border-radius: 8px;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #07130f;
+  color: var(--accent-contrast);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1080,6 +1157,6 @@ body {
 }
 
 .window-control.danger:hover {
-  background: #c24343;
+  background: var(--error);
   color: #fff;
 }

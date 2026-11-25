@@ -85,7 +85,13 @@ export function Settings() {
       setMessage("");
       const next = await commands.settingsUpdate(patch);
       setSettings(next);
-      if (patch.theme) applyTheme(String(patch.theme));
+      if (patch.theme) {
+        applyTheme(String(patch.theme));
+        const resolved = document.documentElement.dataset.theme;
+        if (resolved === "light" || resolved === "dark") {
+          window.dispatchEvent(new CustomEvent("biu:theme", { detail: resolved }));
+        }
+      }
       if (patch.alwaysOnTop !== undefined) {
         await getCurrentWindow().setAlwaysOnTop(Boolean(patch.alwaysOnTop)).catch(() => {});
       }
@@ -168,7 +174,10 @@ export function Settings() {
             </select>
           </label>
           <label className="setting-row">
-            <span>{t("settings.startMinimized")}</span>
+            <span>
+              {t("settings.startMinimized")}
+              <span className="badge">{t("settings.restartRequired")}</span>
+            </span>
             <input
               type="checkbox"
               checked={settings.startMinimized}
@@ -185,25 +194,6 @@ export function Settings() {
               type="checkbox"
               checked={settings.resumeOnStart}
               onChange={(event) => update({ resumeOnStart: event.target.checked })}
-            />
-          </label>
-          <label className="setting-row">
-            <span>{t("settings.gapless")}</span>
-            <input
-              type="checkbox"
-              checked={settings.gapless}
-              onChange={(event) => update({ gapless: event.target.checked })}
-            />
-          </label>
-          <label className="setting-row">
-            <span>{t("settings.crossfade")}</span>
-            <input
-              type="number"
-              min={0}
-              max={10000}
-              step={100}
-              value={settings.crossfadeMs ?? 0}
-              onChange={(event) => update({ crossfadeMs: Number(event.target.value) })}
             />
           </label>
           <label className="setting-row">
@@ -276,29 +266,11 @@ export function Settings() {
         <div className="settings-card" id="settings-interface">
           <h3>{t("settings.section.interface")}</h3>
           <label className="setting-row">
-            <span>{t("settings.density")}</span>
-            <select
-              value={settings.listDensity}
-              onChange={(event) => update({ listDensity: event.target.value })}
-            >
-              <option value="comfortable">{t("settings.density.comfortable")}</option>
-              <option value="compact">{t("settings.density.compact")}</option>
-            </select>
-          </label>
-          <label className="setting-row">
             <span>{t("settings.sidebarCollapsed")}</span>
             <input
               type="checkbox"
               checked={settings.sidebarCollapsed}
               onChange={(event) => update({ sidebarCollapsed: event.target.checked })}
-            />
-          </label>
-          <label className="setting-row">
-            <span>{t("settings.reduceMotion")}</span>
-            <input
-              type="checkbox"
-              checked={settings.reduceMotion}
-              onChange={(event) => update({ reduceMotion: event.target.checked })}
             />
           </label>
           <label className="setting-row">
