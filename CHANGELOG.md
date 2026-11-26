@@ -41,6 +41,14 @@
 - 标签格式夹具测试：ID3v1、ID3v2、APEv2、Vorbis Comments、MP4 atoms、WAV ID3 均由 lofty 写入后扫描回读（`cargo test -p biu-library --test tag_formats`）。
 - UI-15 基准：`pnpm test:perf` 在生产构建上以 10 万行媒体库测滚动帧率（本机 60fps、DOM 行数 <80）。
 - 覆盖率门禁：前端 `pnpm test:coverage`（`theme.ts`/`lyricsTiming.ts` 行覆盖阈值），CI 新增 `cargo llvm-cov` 行覆盖率作业（audio/library/lyrics/core，阈值 45，实测 66.44%）。
+- 媒体库新增“添加文件…”多选导入（`library_import_files`）；拖入多个目录时一次提交 `library_scan_start_many`，按目录顺序扫描。
+- 播放列表支持按名称 A→Z / Z→A 排序，并保留“默认顺序”回退。
+- 专辑/艺术家/专辑艺术家/流派/年代/文件夹列表改为分页加载（每页 120，`useLoadMore`），大库不再一次性渲染。
+- 拼音查询命中时整行标题高亮（`isPinyinQuery` + `markAllIfMiss`）。
+- 设置 → 数据新增便携模式开关（写/删 `portable.flag`）与数据目录展示；关于页新增构建 commit 展示、致谢与 `docs/THIRD_PARTY_LICENSES.md` 入口。
+- 新增 `docs/USER_GUIDE.md` 用户手册。
+
+### Fixed
 
 ### Fixed
 
@@ -53,6 +61,10 @@
 - 搜索结果补齐艺术家与专辑字段（此前统一显示“未知艺术家/未知专辑”），并支持按文件名检索。
 - 诊断包与崩溃日志脱敏：数据/缓存/日志目录、用户名与家目录替换为占位符，settings.json 与日志同样处理；崩溃文件名改用毫秒时间戳，避免同秒 panic 互相覆盖。
 - 播放页歌词偏移真正生效，并以 100ms 插值推进当前行（此前固定 +80ms 且 `lyricsOffsetMs` 只在桌面歌词生效）。
+- 媒体库打开失败时自动从 `library.db.bak` 还原（schema 版本过新的库不还原，避免降级）。
+- 连续播放失败改为独立 `FailureTracker`，连续 3 次后停止并有单测覆盖；任意一次成功播放会重置计数。
+- 扫描被取消后可直接“继续”，从上次目录断点续扫，不再要求重输路径。
+- 首帧主题由 `index.html` 记录 `__biuThemeBoot`，E2E 断言浅色启动时首帧背景为 `#f6f7f9`，防止回退成白闪。
 
 ### Planned
 

@@ -15,7 +15,10 @@
 | [docs/Prd.md](docs/Prd.md) | 产品需求：画像、场景、页面、FR、NFR |
 | [docs/Arch.md](docs/Arch.md) | 技术架构：crates、音频、库、IPC、插件、打包 |
 | [docs/Mvp.md](docs/Mvp.md) | MVP 范围、56 个任务、验收与门禁 |
-| [docs/reports/](docs/reports/) | M0 验证报告 |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户手册：导入、播放、搜索、歌词、设置、便携与诊断 |
+| [docs/reports/mvp-acceptance-matrix.md](docs/reports/mvp-acceptance-matrix.md) | 51 项 P0 验收矩阵（35✅ / 16🟡 / 0⛔） |
+| [docs/THIRD_PARTY_LICENSES.md](docs/THIRD_PARTY_LICENSES.md) | 第三方组件与许可证 |
+| [docs/reports/](docs/reports/) | M0 验证报告与各轮审计 |
 
 ## 当前已验证
 
@@ -27,8 +30,8 @@
 | 日志 | tracing 按天落盘到系统日志目录，panic 崩溃文件 |
 | 媒体库 | SQLite + FTS5 v2、增量扫描/暂停/取消/续扫、拼音搜索、虚拟滚动与列排序 |
 | 播放 | 7 格式流式解码、cpal 共享输出、队列/上一首/下一首/停止/4 模式/全局播放栏、坏文件跳过与设备恢复 |
-| 播放列表 | 创建/重命名/删除、加入/移除、上移/下移、整列表播放 |
-| 浏览 | 正在播放页、专辑/艺术家聚合与详情、虚拟滚动曲目表、内嵌封面提取与缓存 |
+| 播放列表 | 创建/重命名/删除、加入/移除、上移/下移、整列表播放、名称排序、拖拽排序与多选批量操作 |
+| 浏览 | 正在播放页、专辑/艺术家/专辑艺术家/流派/年代/文件夹聚合与详情、歌曲虚拟滚动、其余列表分页加载、内嵌封面提取与缓存 |
 | 设置 | 常规/播放/音频/歌词/界面/关于、settings.json 持久化、主题跟随系统、设备切换、侧栏调宽/折叠、窗口置顶、无边框窗口、原生窗口透明度（Linux 降级为界面不透明度）；设置页三语化 |
 | 系统集成 | 托盘菜单、单实例文件转交、文件拖放、关闭到托盘、启动最小化 |
 | 歌词 | 同名 .lrc 优先 + 内嵌歌词回退、GBK/UTF-8 解码、同步滚动、点击跳转、桌面置顶歌词窗口与字号/颜色设置 |
@@ -37,7 +40,7 @@
 | 路径/配置 | 平台数据目录、便携模式、settings.json 原子写、损坏隔离 |
 | 诊断 | panic 崩溃日志、settings+最近日志诊断 zip |
 
-未验证/待补证据：Windows 11 与 macOS arm64 真机启动与出声、Ubuntu 24.04/Wayland、8 小时长稳与 10 万行 fps/CPU 基准、真实标签样本（ID3v1/APEv2/Vorbis/MP4 atoms/WAV-ID3）、设备拔插真机恢复。
+未验证/待补证据：Windows 11 与 macOS arm64 真机启动与出声、Ubuntu 24.04/Wayland、播放 CPU ≤3% 与 8 小时长稳、三平台安装包实跑（无 tag）、双屏 150% 窗口位置、设备拔插真机恢复。10 万行滚动帧率已用 `pnpm test:perf` 在生产构建实测（60fps、DOM 26 行）。
 
 ## 环境要求
 

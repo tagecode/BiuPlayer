@@ -274,3 +274,32 @@ gapless/crossfade 属 §1 非目标却可调；list_density/reduce_motion/桌面
 | `cargo llvm-cov -p biu-core -p biu-audio -p biu-library -p biu-lyrics` | 行覆盖 66.44%（阈值 45） |
 
 未能本机验证（按要求后置到发布门禁）：播放 CPU ≤3%、8h 长稳、三平台安装包、真实音频设备上的断点续播与设备拔插。
+
+## 7. 第五轮：剩余 10 个代码缺口（2026-11-26）
+
+| # | 缺口 | 状态 | 关键改动 | 证据 |
+| --- | --- | --- | --- | --- |
+| 1 | PL-02 单文件选择 + 多文件夹拖入 | ✅ | 「添加文件…」多选 `libraryImportFiles`；拖入多目录一次 `libraryScanStartMany`（单线程顺序扫描，避免“扫描已在进行”） | `Database::import_file` + 命令注册；E2E 拖放未覆盖原生对话框 |
+| 2 | SET-06 构建信息/许可/致谢 | ✅ | `build.rs` 注入 `BIU_GIT_COMMIT`；关于页显示 commit/致谢/第三方许可外链；新增 `docs/THIRD_PARTY_LICENSES.md` | `build_commit` 字段 + `src/bindings.ts` |
+| 3 | SYS-10 便携创建入口 | ✅ | 设置 → 数据：显示数据目录、便携模式复选框；`portable_flag_set` 写/删 `<exe>/portable.flag` | 需重启生效；跨机拷贝仍未实测 |
+| 4 | AUD-20 三坏文件自动化 | ✅ | `FailureTracker`（`Skip`/`Stop`）替换裸计数器；成功播放重置 | 2 个单测：连续 3 次停止、成功一次后重置 |
+| 5 | PL-01 播放列表排序 | ✅ | 播放列表页「名称 A→Z / Z→A / 默认顺序」，`localeCompare` 后 `playlistReorderAll` 写回 | 不覆盖按创建时间排序 |
+| 6 | DATA-03 迁移失败自动恢复 | ✅ | 打开数据库失败时若存在 `library.db.bak` 则整库覆盖重开；`SchemaTooNew` 不还原（避免把新库降级） | `restore_database_backup` |
+| 7 | LIB-02 取消后继续 | ✅ | 扫描按钮在 `paused` 与 `cancelled` 下都显示「继续」；`begin_scan` 按 `session.status.root` 续扫 | 每文件事务保留（10k 11.35s < 60s） |
+| 8 | LIB-04 列表分页 | ✅ | `useLoadMore`（每页 120）+ 专辑/艺术家/专辑艺术家/流派/年代/文件夹「加载更多」 | 前端分页；命令层无 limit/offset |
+| 9 | LIB-06 拼音高亮 | ✅ | `isPinyinQuery` + `markAllIfMiss`：拉丁查询命中时整行标题高亮 | 中文仍按字面高亮 |
+| 10 | UI-03 首帧断言 + QA-08 手册 | ✅ | 首帧内联脚本记录 `__biuThemeBoot`；E2E 断言 light + `#f6f7f9`；新增 `docs/USER_GUIDE.md` | E2E 8/8 |
+
+### 7.1 本轮验证记录（本机，2026-11-26）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm typecheck` / `pnpm lint` | 0 |
+| `pnpm test` | 16 passed |
+| `pnpm build` | 0（dist 458.71 kB JS / 27.05 kB CSS；需将 TMP 指向仓库内目录，规避宿主 Temp ACL） |
+| `pnpm test:e2e` | 8/8 passed（新增首帧无白闪用例） |
+| `pnpm test:perf` | 60.0fps（idle 59.7），DOM 26 行，3s 滚动 43,440px |
+| `cargo fmt --all --check` / `cargo clippy --workspace --all-targets -D warnings` | 0 |
+| `cargo test --workspace` | 全部通过（含 `FailureTracker`、`import_file`、`restore_database_backup` 相关用例与 `tag_formats`） |
+
+结论：10 项代码缺口全部关闭；矩阵更新为 35✅ / 16🟡 / 0⛔。剩余 🟡 集中在 REL（无 tag/真机安装包）、NET（无抓包）、UI-08（双屏 150%）、UI-15（CPU/长稳）、AUD-02/04/11（真机音频）、PL-03/08（极端规模压测）、LIB-01（Windows 隐藏属性/目录监听）、SYS-10（跨机拷贝）。这些都需要真机或多平台环境，按约定留到发布门禁阶段。
