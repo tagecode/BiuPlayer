@@ -14,6 +14,18 @@ test("shell loads with navigation and idle player", async ({ page }) => {
   await expect(page.getByRole("link", { name: "播放列表" })).toBeVisible();
 });
 
+test("layout fits the default 960x680 window without horizontal scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 680 });
+  await page.goto("/#/library");
+  await expect(page.locator(".shell")).toBeVisible();
+  const metrics = await page.evaluate(() => ({
+    inner: window.innerWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(metrics.scroll).toBeLessThanOrEqual(metrics.inner + 1);
+  await expect(page.locator(".playerbar")).toBeVisible();
+});
+
 test("library search filters and play starts playback", async ({ page }) => {
   await page.goto("/#/library");
   await expect(page.getByRole("heading", { name: "曲目" })).toBeVisible();

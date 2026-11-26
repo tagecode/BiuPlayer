@@ -114,8 +114,12 @@ jobs:
           echo "runtime smoke ok: $log"
 
   e2e:
-    name: e2e (browser mock)
-    runs-on: ubuntu-22.04
+    name: e2e (browser mock, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -130,8 +134,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Install Chromium
+      - name: Install Chromium (Linux)
+        if: runner.os == 'Linux'
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Chromium (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm exec playwright install chromium
 
       - name: Browser E2E
         run: pnpm test:e2e

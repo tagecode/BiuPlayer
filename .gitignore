@@ -45,3 +45,8 @@ blob-report
 .codegraph/
 .cursor/
 coverage/
+.tmp-test/
+
+# Native WebDriver tooling and run artifacts
+/tools/native/
+/.native-e2e/

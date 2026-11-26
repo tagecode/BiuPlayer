@@ -243,10 +243,10 @@ body {
 
 .playerbar {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) auto minmax(220px, 1.2fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) auto minmax(110px, 1fr) auto;
   align-items: center;
-  gap: 16px;
-  padding: 12px 24px;
+  gap: 10px;
+  padding: 10px 16px;
   border-top: 1px solid var(--line);
   background: var(--panel);
 }
@@ -254,11 +254,12 @@ body {
 .player-extra {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .player-extra input[type="range"] {
-  width: 84px;
+  width: 64px;
 }
 
 .player-progress input[type="range"] {

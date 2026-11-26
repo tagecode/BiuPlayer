@@ -12,13 +12,22 @@ export default [
       "test-results/**",
       "playwright-report/**",
       ".tmp-build/**",
+      ".tmp-test/**",
+      ".native-e2e/**",
     ],
   },
   { ...js.configs.recommended, files: ["**/*.{js,mjs,cjs}"] },
   {
     files: ["scripts/**/*.{js,mjs}"],
     languageOptions: {
-      globals: { console: "readonly", process: "readonly" },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        fetch: "readonly",
+        AbortSignal: "readonly",
+        Buffer: "readonly",
+        URL: "readonly",
+      },
     },
   },
   ...tseslint.configs.recommended.map((config) => ({ ...config, files: tsFiles })),

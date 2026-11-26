@@ -150,6 +150,16 @@ pub fn play_sine(
     })
 }
 
+/// Sample formats this crate can write, most-preferred first.
+fn format_rank(format: SampleFormat) -> Option<u8> {
+    match format {
+        SampleFormat::F32 => Some(0),
+        SampleFormat::I16 => Some(1),
+        SampleFormat::U16 => Some(2),
+        _ => None,
+    }
+}
+
 fn select_config(
     device: &cpal::Device,
     requested_rate: u32,
@@ -159,22 +169,34 @@ fn select_config(
         .map_err(|e| AudioError::Output(e.to_string()))?
         .collect();
 
+    // Only pick a stereo config at the requested rate whose sample format the
+    // writers above support, preferring f32 over integer formats. Some hosts
+    // list u8 first, which would otherwise be selected and then rejected.
     let requested = configs
         .iter()
-        .find(|c| {
+        .filter(|c| {
             c.channels() == 2
                 && c.min_sample_rate().0 <= requested_rate
                 && c.max_sample_rate().0 >= requested_rate
         })
-        .map(|c| c.with_sample_rate(SampleRate(requested_rate)));
+        .filter_map(|c| format_rank(c.sample_format()).map(|rank| (rank, c)))
+        .min_by_key(|(rank, _)| *rank)
+        .map(|(_, c)| c.with_sample_rate(SampleRate(requested_rate)));
 
     if let Some(config) = requested {
         return Ok(config);
     }
 
-    device
+    let fallback = device
         .default_output_config()
-        .map_err(|e| AudioError::Output(e.to_string()))
+        .map_err(|e| AudioError::Output(e.to_string()))?;
+    if format_rank(fallback.sample_format()).is_none() {
+        return Err(AudioError::Output(format!(
+            "no supported output format for {}",
+            device.name().unwrap_or_else(|_| "<unknown>".into())
+        )));
+    }
+    Ok(fallback)
 }
 
 fn fill_f32(data: &mut [f32], channels: usize, phase: &mut f32, step: f32, amp: f32) {
