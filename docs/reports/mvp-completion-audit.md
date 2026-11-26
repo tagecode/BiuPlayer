@@ -303,3 +303,28 @@ gapless/crossfade 属 §1 非目标却可调；list_density/reduce_motion/桌面
 | `cargo test --workspace` | 全部通过（含 `FailureTracker`、`import_file`、`restore_database_backup` 相关用例与 `tag_formats`） |
 
 结论：10 项代码缺口全部关闭；矩阵更新为 35✅ / 16🟡 / 0⛔。剩余 🟡 集中在 REL（无 tag/真机安装包）、NET（无抓包）、UI-08（双屏 150%）、UI-15（CPU/长稳）、AUD-02/04/11（真机音频）、PL-03/08（极端规模压测）、LIB-01（Windows 隐藏属性/目录监听）、SYS-10（跨机拷贝）。这些都需要真机或多平台环境，按约定留到发布门禁阶段。
+
+## 8. 第六轮：Windows 平台测试补齐（2026-11-27）
+
+先盘点“Windows 上单元/集成/E2E 是否完成”，再按“原生窗口 E2E → NSIS 安装冒烟 → 真实声卡”逐项补。
+
+| # | 项 | 状态 | 结果 / 证据 |
+| --- | --- | --- | --- |
+| 1 | 原生 WebView2 窗口 E2E | ✅ | 新增 `scripts/native-e2e.mjs`（tauri-driver 2.1.0 + msedgedriver 158.0.4370.33，W3C WebDriver 直连）。8 项检查全过：启动、`.shell`、标题“博音 BiuPlayer”、播放条、960×680 无横向溢出、主题切换、`#/library` 导航、页面标题；截图 `docs/reports/assets/native-e2e/window.png`。报告：`docs/reports/windows-native-e2e.md` |
+| 2 | 960×680 布局回归 | ✅ | 原生检查发现 `scrollWidth=1049 > 960`，定位 `.playerbar` 网格最小宽度与音量滑块；收窄后 `scrollWidth=960`。Playwright 新增同视口回归用例，9/9 passed |
+| 3 | NSIS 安装/卸载冒烟 | 🟡 | 安装包构建成功（`BiuPlayer_0.1.0_x64-setup.exe`，4.51 MiB），`scripts/nsis-smoke.ps1` 就绪；本机 `%TEMP%` ACL 异常使安装器报 “Error writing temporary file”，改到可写 TEMP 后 `/S` 为空操作，未完成安装验证。报告：`docs/reports/windows-nsis-smoke.md` |
+| 4 | 真实音频输出冒烟 | ✅ | 新增 `crates/biu-audio/tests/output_smoke.rs`（`#[ignore]`）：默认设备枚举 + 播放 0.3s 正弦波。首次运行暴露 `unsupported sample format: U8`，修复 `select_config` 只接受 `F32/I16/U16` 并按优先级选优。报告：`docs/reports/windows-audio-smoke.md` |
+| 5 | 设备拔插 / 独占输出 | ⛔ | 依赖真实 USB 设备与硬件事件，本机无法自动化；应用侧 `device_lost` + `recover_output` 已有代码与 2s 冷却 |
+| 6 | CI 增加 Windows 浏览器 E2E | ✅ | `.github/workflows/ci.yml` 的 `e2e` 作业改为 ubuntu-22.04 + windows-latest 矩阵，Windows 上单独安装 Chromium 后跑同一套 9 个用例 |
+
+验证（本机，2026-11-27）：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm test:e2e` | 9/9 passed |
+| `node scripts/native-e2e.mjs` | 8/8 checks |
+| `cargo test -p biu-audio --test output_smoke -- --ignored` | 1 passed（修复后） |
+| `cargo fmt --all --check` / `clippy -D warnings` | 0 |
+| `cargo test --workspace` | 全部通过 |
+
+尚未闭环：NSIS 安装冒烟需在干净 Windows 机器执行 `scripts/nsis-smoke.ps1`；声卡实际出声与拔插恢复需人工；CI 仍只在 ubuntu 跑浏览器 E2E（原生/驱动不适合 CI）。

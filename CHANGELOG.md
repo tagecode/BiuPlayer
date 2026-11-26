@@ -6,6 +6,7 @@
 
 ### Added
 
+- Windows 原生 WebDriver 冒烟（`pnpm test:e2e:native`）：经 tauri-driver + msedgedriver 驱动真实 WebView2 窗口，8 项检查覆盖启动、标题、播放条、主题切换、库导航与默认 960×680 宽度不溢出；未接入 CI，需本机驱动。
 - 全局搜索页与顶栏搜索入口，支持高亮命中与队列播放。
 - 启动时检测上次崩溃日志，提示导出诊断包。
 - 媒体库支持手动排序（上移/下移并持久化）。
@@ -47,11 +48,14 @@
 - 拼音查询命中时整行标题高亮（`isPinyinQuery` + `markAllIfMiss`）。
 - 设置 → 数据新增便携模式开关（写/删 `portable.flag`）与数据目录展示；关于页新增构建 commit 展示、致谢与 `docs/THIRD_PARTY_LICENSES.md` 入口。
 - 新增 `docs/USER_GUIDE.md` 用户手册。
+- 真实音频输出冒烟：`cargo test -p biu-audio --test output_smoke -- --ignored` 在默认设备上枚举并播放 0.3s 正弦波（`docs/reports/windows-audio-smoke.md`）。
+- Windows 原生 WebDriver E2E 与 NSIS 冒烟脚本：`pnpm test:e2e:native`、`scripts/nsis-smoke.ps1`，并补充对应报告（`docs/reports/windows-native-e2e.md`、`docs/reports/windows-nsis-smoke.md`）。
 
 ### Fixed
 
-### Fixed
+- 修复默认输出设备优先返回 `U8` 配置时播放失败的问题：配置选择只接受 `F32/I16/U16` 并按优先级取最优，回退路径同样校验格式。
 
+- 默认 960×680 窗口下播放栏不再把页面撑出横向滚动条（网格最小列宽与音量滑块收窄），并新增 960×680 视口回归测试。
 - `settings.json` 在 Windows 上不再先删后改名：改为 rename 失败时把旧文件移到旁路并回滚，避免写入中断丢失配置；损坏配置按验收要求备份为 `settings.json.bak`。
 - 无边框开关现在会写入设置并在重启后恢复（此前 `settings_update` 丢弃 `frameless` 字段）。
 - 主题切换与设置页、系统主题保持同步，并回写 `settings.json`；首帧由 `index.html` 内联脚本决定主题，避免浅色主题启动时闪深色。

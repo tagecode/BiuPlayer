@@ -28,9 +28,9 @@
 
 | ID | 验收要求（摘要） | 状态 | 证据 / 复验方式 | 剩余缺口 |
 | --- | --- | :---: | --- | --- |
-| AUD-01 | 7 格式解码 | ✅ | `cargo test -p biu-audio --test formats`（7/7 probe 通过） | 无声卡环境下仅解码路径 |
+| AUD-01 | 7 格式解码 | ✅ | `cargo test -p biu-audio --test formats`（7/7 probe 通过）；`cargo test -p biu-audio --test output_smoke -- --ignored` 默认设备真实播放 0.3s 通过（修复 U8 配置选择，见 `docs/reports/windows-audio-smoke.md`） | 扬声器听感未人工验证 |
 | AUD-02 | 文件头探测 / 损坏容错 | 🟡 | `tests/probe_errors.rs` 5 例；播放失败日志含 path/error | 无真实截断文件端到端自动跳曲用例 |
-| AUD-04 | 设备枚举/切换/拔出 2s 回退 | 🟡 | `player_set_device`、`recover_output`、前端 `device_lost` 提示 | USB 真机拔插未测 |
+| AUD-04 | 设备枚举/切换/拔出 2s 回退 | 🟡 | `player_set_device`、`recover_output`、前端 `device_lost` 提示；真实设备枚举/播放冒烟通过 | USB 真机拔插未测 |
 | AUD-11 | 播放控制 ≤100ms | 🟡 | 命令齐全（播放/暂停/停止/上下首/seek/音量/静音） | 延迟未基准测试 |
 | AUD-16 | 4 模式 + 重启保持 | ✅ | `queue.rs` 模式单测；`Session.mode` 持久化，`persists_queue_for_restart` 断言恢复为 `Shuffle` | 重启后自动继续播放由 A1-05 的 `resume_on_start` 控制，属另一项 |
 | AUD-20 | 连续 3 坏文件不卡死 | ✅ | `FailureTracker` + 单测 `skips_two_bad_files_and_stops_on_the_third`、`a_successful_track_resets_the_failure_streak`；日志含 `stopped after three consecutive playback failures` | — |
@@ -50,7 +50,7 @@
 | LRC-01 | 标准/增强/多标签/offset | ✅ | 解析单测 + `[offset:-200]` → 800ms；`activeLineIndex` 边界/偏移单测；播放页 100ms 插值，offset 生效 | 误差上界由 100ms 插值决定，未在真机音频上抽测 |
 | LRC-03 | 同名 .lrc + GBK/UTF-8 | ✅ | `biu-lyrics` 3 单测 + 占位不阻塞 | — |
 | LRC-05 | 滚动/高亮/点击跳转 | ✅ | `scrollIntoView` + 行按钮 `playerSeek` | 无 GUI 点击自动化 |
-| UI-01 | 侧栏/播放栏/折叠/调宽/持久化 | ✅ | `Shell.tsx` + `settingsUpdate`；min 760×520；`docs/reports/assets/mvp-fixes/light-800.png` 为 800×600 基线 | 800×600 仅截图，无自动化断言 |
+| UI-01 | 侧栏/播放栏/折叠/调宽/持久化 | ✅ | `Shell.tsx` + `settingsUpdate`；min 760×520；`docs/reports/assets/mvp-fixes/light-800.png` 为 800×600 基线；Windows 原生 WebDriver 在 960×680 实测 `scrollWidth == innerWidth`（`docs/reports/windows-native-e2e.md`），Chromium 侧有 960×680 回归用例 | 800×600 仅截图，无自动化断言 |
 | UI-03 | 浅/深主题 + 跟随系统 + 无白闪 | ✅ | 浅色变量补齐 + 首帧内联脚本（记录 `__biuThemeBoot`）；E2E `theme is applied before the bundle paints` 断言首帧为 light 且背景 `#f6f7f9` | 未做 500ms 内逐帧采样 |
 | UI-08 | 无边框/置顶/透明度/尺寸记忆 | 🟡 | frameless 已持久化；window-state | 双屏 150% 未测 |
 | UI-09 | 托盘菜单/关闭到托盘/状态同步 | ✅ | `tray.rs` 六项菜单 + tooltip 同步 + 三语 | — |
@@ -68,7 +68,7 @@
 | NET-04 | 零遥测、默认零出站 | 🟡 | 无 http/updater 插件、无 fetch；见 `privacy-egress.md` | 未做 24h 抓包 |
 | REL-01 | v* tag 产出四平台 | 🟡 | release.yml 矩阵齐全 | 0 个 tag，未实跑 |
 | REL-02 | Win 绿色 zip 配置随目录 | ✅ | `portable.flag` + `paths.rs` | 文档 INSTALL 已纠偏 |
-| REL-03 | NSIS 安装/升级/卸载无残留 | 🟡 | bundle nsis | 无干净机证据 |
+| REL-03 | NSIS 安装/升级/卸载无残留 | 🟡 | bundle nsis：`BiuPlayer_0.1.0_x64-setup.exe` 构建通过；`scripts/nsis-smoke.ps1` 已就绪（静默安装→检查文件/快捷方式/注册表→便携启动→卸载） | 本机 `%TEMP%` ACL 异常导致安装器静默安装为空操作（详见 `docs/reports/windows-nsis-smoke.md`），需干净机执行冒烟脚本 |
 | REL-04 | dmg 双架构未签名可打开 | 🟡 | 矩阵含 x64/arm64 | 未真机验证 |
 | REL-05 | AppImage/deb/rpm + 22.04/24.04 | 🟡 | 三包 + CI Xvfb 冒烟 | 24.04/Wayland 未测 |
 | REL-06 | `BiuPlayer_<version>_<os>_<arch>` | ✅ | 产物统一重命名 + `pnpm check:version` | — |

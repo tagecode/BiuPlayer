@@ -72,8 +72,27 @@ cd src-tauri
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+
+pnpm typecheck
+pnpm lint
+pnpm test            # 前端单元测试（Vitest）
+pnpm test:coverage   # 覆盖率门槛
 pnpm test:e2e        # 浏览器 E2E（mock Tauri IPC）
+pnpm test:perf       # 10 万行列表滚动帧率
+pnpm test:e2e:native # 仅 Windows：真实 WebView2 窗口冒烟（需 tauri-driver）
 ```
+
+原生冒烟与安装包冒烟的前置条件、结果与局限见
+`docs/reports/windows-native-e2e.md`、`docs/reports/windows-nsis-smoke.md`。
+
+真实声卡输出冒烟（需要可用输出设备，默认跳过）：
+
+```bash
+cd src-tauri
+cargo test -p biu-audio --test output_smoke -- --ignored --nocapture
+```
+
+结果见 `docs/reports/windows-audio-smoke.md`。
 
 音频夹具与探针：
 
