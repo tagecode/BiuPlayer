@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type PlaylistDto } from "../bindings";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
 export function Playlists() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [items, setItems] = useState<PlaylistDto[]>([]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const originalOrder = useRef<number[]>([]);
 
   const refresh = useCallback(async () => {
-    setItems(await commands.playlistList());
+    const list = await commands.playlistList();
+    setItems(list);
+    if (originalOrder.current.length === 0) {
+      originalOrder.current = list.map((item) => item.id ?? 0);
+    }
   }, []);
 
   useEffect(() => {
@@ -61,8 +66,27 @@ export function Playlists() {
     }
   }
 
-  async function remove(item: PlaylistDto) {
-    if (!window.confirm(t("playlists.deleteConfirm", { name: item.name }))) return;
+  async function sortBy(mode: "name" | "nameDesc" | "default") {
+    const next = [...items];
+    if (mode === "default") {
+      next.sort(
+        (a, b) =>
+          originalOrder.current.indexOf(a.id ?? 0) - originalOrder.current.indexOf(b.id ?? 0),
+      );
+    } else {
+      const direction = mode === "name" ? 1 : -1;
+      next.sort((a, b) => a.name.localeCompare(b.name, lang) * direction);
+    }
+    setItems(next);
+    try {
+      await commands.playlistReorderAll(next.map((item) => item.id ?? 0));
+    } catch (error) {
+      setMessage(formatError(error, t));
+      await refresh();
+    }
+  }
+
+  async function remove(item: PlaylistDto) {    if (!window.confirm(t("playlists.deleteConfirm", { name: item.name }))) return;
     try {
       if (item.id == null) return;
       await commands.playlistDelete(item.id);
@@ -95,7 +119,20 @@ export function Playlists() {
       </div>
 
       {message && <p className="notice">{message}</p>}
-      {items.length > 1 && <p className="muted">{t("playlists.reorderHint")}</p>}
+      {items.length > 1 && (
+        <div className="playlist-sort">
+          <span className="muted">{t("playlists.reorderHint")}</span>
+          <button className="ghost" onClick={() => void sortBy("name")}>
+            {t("playlists.sortName")}
+          </button>
+          <button className="ghost" onClick={() => void sortBy("nameDesc")}>
+            {t("playlists.sortNameDesc")}
+          </button>
+          <button className="ghost" onClick={() => void sortBy("default")}>
+            {t("playlists.sortDefault")}
+          </button>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="empty-card">

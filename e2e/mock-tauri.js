@@ -63,6 +63,7 @@
     app_info: () => ({
       name: "BiuPlayer", version: "0.1.0", tauri_version: "2.9.0",
       os: "macos", arch: "aarch64", log_dir: "/tmp/biu-logs",
+      build_commit: "abc1234",
     }),
     app_paths: () => ({
       data_dir: "/tmp/biu-data", cache_dir: "/tmp/biu-cache", log_dir: "/tmp/biu-logs",
@@ -141,6 +142,12 @@
       state: "completed", root: path, files_seen: tracks.length, inserted: 0,
       skipped: tracks.length, total_tracks: tracks.length, error: null,
     }),
+    library_scan_start_many: ({ paths }) => ({
+      state: "completed", root: (paths ?? [])[0] ?? null, files_seen: tracks.length, inserted: 0,
+      skipped: tracks.length, total_tracks: tracks.length, error: null,
+    }),
+    library_import_files: ({ paths }) => (paths ?? []).length,
+    portable_flag_set: ({ enabled }) => Boolean(enabled),
     library_scan_status: () => ({
       state: "completed", root: "/music", files_seen: tracks.length, inserted: 0,
       skipped: tracks.length, total_tracks: tracks.length, error: null,

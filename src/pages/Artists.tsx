@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { commands, type ArtistDto } from "../bindings";
 import { LibraryNav } from "../components/LibraryNav";
+import { ShowMore, useLoadMore } from "../components/ShowMore";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
@@ -9,6 +10,7 @@ export function Artists() {
   const { t } = useI18n();
   const [artists, setArtists] = useState<ArtistDto[]>([]);
   const [message, setMessage] = useState("");
+  const { visible, hasMore, loadMore } = useLoadMore(artists.length);
 
   useEffect(() => {
     commands
@@ -36,19 +38,22 @@ export function Artists() {
           <Link to="/library">{t("common.openLibrary")}</Link>
         </div>
       ) : (
-        <ul className="artist-list">
-          {artists.map((artist) => (
-            <li key={artist.id}>
-              <Link to={`/library/artists/${artist.id}`} className="artist-row">
-                <span className="artist-avatar">{artist.name.trim().charAt(0).toUpperCase() || "?"}</span>
-                <span>
-                  <strong>{artist.name}</strong>
-                  <span className="muted">{artist.track_count ?? 0} {t("common.tracksSuffix")}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="artist-list">
+            {artists.slice(0, visible).map((artist) => (
+              <li key={artist.id}>
+                <Link to={`/library/artists/${artist.id}`} className="artist-row">
+                  <span className="artist-avatar">{artist.name.trim().charAt(0).toUpperCase() || "?"}</span>
+                  <span>
+                    <strong>{artist.name}</strong>
+                    <span className="muted">{artist.track_count ?? 0} {t("common.tracksSuffix")}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <ShowMore hasMore={hasMore} onClick={loadMore} />
+        </>
       )}
     </section>
   );

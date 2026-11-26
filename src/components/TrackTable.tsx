@@ -7,11 +7,22 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export function HighlightText({ text, query }: { text: string; query?: string }) {
+export function HighlightText({
+  text,
+  query,
+  markAllIfMiss,
+}: {
+  text: string;
+  query?: string;
+  /** Pinyin queries never match literally; mark the whole value instead. */
+  markAllIfMiss?: boolean;
+}) {
   const needle = query?.trim().toLowerCase();
   if (!needle) return <>{text}</>;
   const index = text.toLowerCase().indexOf(needle);
-  if (index < 0) return <>{text}</>;
+  if (index < 0) {
+    return markAllIfMiss ? <mark className="search-hit">{text}</mark> : <>{text}</>;
+  }
   return (
     <>
       {text.slice(0, index)}
@@ -19,6 +30,12 @@ export function HighlightText({ text, query }: { text: string; query?: string })
       {text.slice(index + needle.length)}
     </>
   );
+}
+
+/** Latin-only queries may be pinyin; CJK queries always match literally. */
+export function isPinyinQuery(query: string | undefined): boolean {
+  const value = query?.trim() ?? "";
+  return value.length > 0 && /^[a-z0-9\s]+$/i.test(value);
 }
 
 export function TrackTable({
@@ -31,6 +48,7 @@ export function TrackTable({
   highlight?: string;
 }) {
   const { t } = useI18n();
+  const pinyin = isPinyinQuery(highlight);
   if (tracks.length === 0) {
     return <p className="muted">{t("common.emptyTracks")}</p>;
   }
@@ -52,7 +70,7 @@ export function TrackTable({
             <td className="muted">{index + 1}</td>
             <td>
               <button className="link-button" onClick={() => onPlay(index)}>
-                <HighlightText text={track.title} query={highlight} />
+                <HighlightText text={track.title} query={highlight} markAllIfMiss={pinyin} />
               </button>
             </td>
             <td>

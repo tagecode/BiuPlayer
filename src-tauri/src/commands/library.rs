@@ -94,9 +94,39 @@ pub fn library_add_folder(
     Ok(scan_dto(report, total as f64))
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn library_import_files(
+    paths: Vec<String>,
+    state: State<'_, LibraryState>,
+) -> Result<f64, CommandError> {
+    if paths.len() > 1000 {
+        return Err(CommandError::invalid_argument(
+            "at most 1000 files can be imported at once",
+        ));
+    }
+    let mut guard = lock_db(&state);
+    let database = guard
+        .as_mut()
+        .ok_or_else(|| CommandError::internal("library database is not open"))?;
+    let mut imported = 0.0f64;
+    for raw in paths {
+        let path = Path::new(&raw);
+        if !path.is_file() {
+            tracing::warn!(path = %raw, "skipped import: not a file");
+            continue;
+        }
+        match database.import_file(path) {
+            Ok(_) => imported += 1.0,
+            Err(err) => tracing::warn!(path = %raw, error = %err, "failed to import file"),
+        }
+    }
+    Ok(imported)
+}
+
 fn begin_scan(
     state: &LibraryState,
-    root: PathBuf,
+    roots: Vec<PathBuf>,
     excludes: Vec<String>,
 ) -> Result<LibraryScanStatusDto, CommandError> {
     let mut session = lock_scan(state);
@@ -108,12 +138,15 @@ fn begin_scan(
             "the previous scan is still stopping",
         ));
     }
+    let first = roots
+        .first()
+        .ok_or_else(|| CommandError::invalid_argument("no folder to scan"))?;
 
     let control = Arc::new(ScanControl::default());
     let progress = Arc::new(ScanProgress::default());
     let status = LibraryScanStatusDto {
         state: "scanning".to_string(),
-        root: Some(root.display().to_string()),
+        root: Some(first.display().to_string()),
         files_seen: 0.0,
         inserted: 0.0,
         skipped: 0.0,
@@ -128,44 +161,75 @@ fn begin_scan(
     let database_file = state.database_file.clone();
     let session = state.scan.clone();
     std::thread::spawn(move || {
-        let result = (|| {
-            let mut database = Database::open(&database_file)?;
+        let mut files_seen = 0u64;
+        let mut inserted = 0u64;
+        let mut skipped = 0u64;
+        let mut failure: Option<String> = None;
+        let mut outcome = "completed";
+
+        let opened = Database::open(&database_file).map(|mut database| {
             if let Some(parent) = database_file.parent() {
                 database.set_cover_dir(parent.join("covers"));
             }
-            let folder_id = database.add_folder(&root)?;
             database
-                .scan_folder_controlled_filtered(folder_id, &root, &control, &progress, &excludes)
-        })();
+        });
+        match opened {
+            Ok(mut database) => {
+                for root in roots {
+                    {
+                        let mut session = session
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        session.status.root = Some(root.display().to_string());
+                    }
+                    let result = database.add_folder(&root).and_then(|folder_id| {
+                        database.scan_folder_controlled_filtered(
+                            folder_id, &root, &control, &progress, &excludes,
+                        )
+                    });
+                    match result {
+                        Ok(ScanOutcome::Completed(report)) => {
+                            files_seen += report.files_seen;
+                            inserted += report.inserted;
+                            skipped += report.skipped;
+                        }
+                        Ok(ScanOutcome::Paused(report)) => {
+                            files_seen += report.files_seen;
+                            inserted += report.inserted;
+                            skipped += report.skipped;
+                            outcome = "paused";
+                            break;
+                        }
+                        Ok(ScanOutcome::Cancelled(report)) => {
+                            files_seen += report.files_seen;
+                            inserted += report.inserted;
+                            skipped += report.skipped;
+                            outcome = "cancelled";
+                            break;
+                        }
+                        Err(err) => {
+                            failure = Some(err.to_string());
+                            outcome = "error";
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(err) => {
+                failure = Some(err.to_string());
+                outcome = "error";
+            }
+        }
 
         let mut session = session
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        match result {
-            Ok(ScanOutcome::Completed(report)) => {
-                session.status.state = "completed".to_string();
-                session.status.files_seen = report.files_seen as f64;
-                session.status.inserted = report.inserted as f64;
-                session.status.skipped = report.skipped as f64;
-                session.status.total_tracks += report.inserted as f64;
-            }
-            Ok(ScanOutcome::Paused(report)) => {
-                session.status.state = "paused".to_string();
-                session.status.files_seen = report.files_seen as f64;
-                session.status.inserted = report.inserted as f64;
-                session.status.skipped = report.skipped as f64;
-            }
-            Ok(ScanOutcome::Cancelled(report)) => {
-                session.status.state = "cancelled".to_string();
-                session.status.files_seen = report.files_seen as f64;
-                session.status.inserted = report.inserted as f64;
-                session.status.skipped = report.skipped as f64;
-            }
-            Err(err) => {
-                session.status.state = "error".to_string();
-                session.status.error = Some(err.to_string());
-            }
-        }
+        session.status.state = outcome.to_string();
+        session.status.files_seen = files_seen as f64;
+        session.status.inserted = inserted as f64;
+        session.status.skipped = skipped as f64;
+        session.status.total_tracks += inserted as f64;
+        session.status.error = failure;
         session.control = None;
         session.progress = None;
     });
@@ -186,7 +250,29 @@ pub fn library_scan_start(
         .lock()
         .map(|settings| settings.library.exclude_globs.clone())
         .unwrap_or_default();
-    begin_scan(&state, root, excludes)
+    begin_scan(&state, vec![root], excludes)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scan_start_many(
+    paths: Vec<String>,
+    state: State<'_, LibraryState>,
+    settings: State<'_, SettingsState>,
+) -> Result<LibraryScanStatusDto, CommandError> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for path in paths.iter().take(64) {
+        let root = canonical_folder(path)?;
+        if !roots.contains(&root) {
+            roots.push(root);
+        }
+    }
+    let excludes = settings
+        .settings
+        .lock()
+        .map(|settings| settings.library.exclude_globs.clone())
+        .unwrap_or_default();
+    begin_scan(&state, roots, excludes)
 }
 
 #[tauri::command]
@@ -258,7 +344,7 @@ pub fn library_scan_resume(
         .lock()
         .map(|settings| settings.library.exclude_globs.clone())
         .unwrap_or_default();
-    begin_scan(&state, PathBuf::from(root), excludes)
+    begin_scan(&state, vec![PathBuf::from(root)], excludes)
 }
 
 #[tauri::command]

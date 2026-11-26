@@ -6,6 +6,7 @@ import { applyFrameless, applyOpacity } from "../window";
 import {
   commands,
   type AppInfo,
+  type AppPathsInfo,
   type AudioDevice,
   type SettingsDto,
   type SettingsPatch_Deserialize,
@@ -32,11 +33,13 @@ export function Settings() {
   const [settings, setSettings] = useState<SettingsDto | null>(null);
   const [message, setMessage] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [appPaths, setAppPaths] = useState<AppPathsInfo | null>(null);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [excludeDraft, setExcludeDraft] = useState("");
 
   useEffect(() => {
     commands.appInfo().then(setAppInfo).catch(() => {});
+    commands.appPaths().then(setAppPaths).catch(() => {});
     commands.audioDevices().then(setDevices).catch(() => {});
   }, []);
 
@@ -80,8 +83,18 @@ export function Settings() {
     }
   }
 
-  async function update(patch: SettingsPatch_Deserialize) {
+  async function togglePortable(enabled: boolean) {
     try {
+      setMessage("");
+      await commands.portableFlagSet(enabled);
+      setAppPaths(await commands.appPaths());
+      setMessage(t("settings.portableChanged"));
+    } catch (error) {
+      setMessage(formatError(error, t));
+    }
+  }
+
+  async function update(patch: SettingsPatch_Deserialize) {    try {
       setMessage("");
       const next = await commands.settingsUpdate(patch);
       setSettings(next);
@@ -314,6 +327,20 @@ export function Settings() {
             {t("settings.dataNote")}
           </p>
           <p className="muted mono">{t("settings.schema")}{settings.schemaVersion}</p>
+          {appPaths && (
+            <>
+              <p className="muted mono">{appPaths.data_dir}</p>
+              <label className="setting-row">
+                <span>{t("settings.portable")}</span>
+                <input
+                  type="checkbox"
+                  checked={appPaths.portable}
+                  onChange={(event) => void togglePortable(event.target.checked)}
+                />
+              </label>
+              <p className="muted">{t("settings.portableHint")}</p>
+            </>
+          )}
         </div>
         <div className="settings-card" id="settings-about">
           <h3>{t("settings.section.about")}</h3>
@@ -323,6 +350,11 @@ export function Settings() {
           <p className="muted">
             {appInfo ? `${appInfo.os} / ${appInfo.arch} · Tauri ${appInfo.tauri_version}` : ""}
           </p>
+          <p className="muted mono">
+            {t("settings.build")}
+            {appInfo?.build_commit ?? "unknown"}
+          </p>
+          <p className="muted">{t("settings.thanks")}</p>
           <p className="muted">{t("settings.licenseLine")}</p>
           <div className="setting-row">
             <button
@@ -346,6 +378,17 @@ export function Settings() {
               }
             >
               {t("settings.openLicense")}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() =>
+                openUrl(
+                  "https://github.com/tagecode/BiuPlayer/blob/main/docs/THIRD_PARTY_LICENSES.md",
+                ).catch((error) => setMessage(formatError(error, t)))
+              }
+            >
+              {t("settings.thirdParty")}
             </button>
           </div>
         </div>

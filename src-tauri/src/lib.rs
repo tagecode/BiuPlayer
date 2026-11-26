@@ -34,6 +34,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::crash_report,
             commands::system::export_diagnostics,
             commands::system::startup_args,
+            commands::system::portable_flag_set,
             commands::windowing::set_window_opacity,
             commands::windowing::set_window_frameless,
             commands::windowing::window_minimize,
@@ -60,7 +61,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::player::player_queue_move,
             commands::player::player_snapshot,
             commands::library::library_add_folder,
+            commands::library::library_import_files,
             commands::library::library_scan_start,
+            commands::library::library_scan_start_many,
             commands::library::library_remove_folder,
             commands::library::library_scan_status,
             commands::library::library_scan_pause,
@@ -194,7 +197,12 @@ pub fn run() {
                 }
                 Err(err) => {
                     tracing::error!(error = %err, "failed to open library database");
-                    None
+                    if matches!(err, biu_library::LibraryError::SchemaTooNew { .. }) {
+                        tracing::warn!("refusing to replace a newer database with a backup");
+                        None
+                    } else {
+                        restore_database_backup(&database_file, &covers_dir)
+                    }
                 }
             };
             app.manage(commands::settings::SettingsState::new(
@@ -231,6 +239,34 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Recover from a database that failed to open (usually a half-applied or
+/// corrupt migration) by restoring the pre-migration `.bak` copy.
+fn restore_database_backup(
+    database_file: &std::path::Path,
+    covers_dir: &std::path::Path,
+) -> Option<biu_library::Database> {
+    let backup = biu_library::backup_path(database_file);
+    if !backup.exists() {
+        tracing::warn!(path = %backup.display(), "no database backup to restore");
+        return None;
+    }
+    if let Err(err) = std::fs::copy(&backup, database_file) {
+        tracing::error!(error = %err, "failed to restore database backup");
+        return None;
+    }
+    tracing::warn!(path = %backup.display(), "restored library database from backup");
+    match biu_library::Database::open(database_file) {
+        Ok(mut database) => {
+            database.set_cover_dir(covers_dir);
+            Some(database)
+        }
+        Err(err) => {
+            tracing::error!(error = %err, "restored database still fails to open");
+            None
+        }
+    }
 }
 
 #[cfg(test)]

@@ -702,6 +702,158 @@ impl Database {
         Ok(())
     }
 
+    /// Indexes a single audio file without walking its directory.
+    ///
+    /// Returns `true` when the file was new to the library.
+    pub fn import_file(&mut self, path: &Path) -> Result<bool, LibraryError> {
+        let path = path.canonicalize()?;
+        let path_string = path.display().to_string();
+        let metadata = std::fs::metadata(&path)?;
+        let mtime = metadata
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let size = metadata.len() as i64;
+        let ext = path
+            .extension()
+            .and_then(|v| v.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let parent = path.parent().ok_or_else(|| {
+            LibraryError::InvalidArgument("audio file has no parent directory".into())
+        })?;
+        let folder_id = self.add_folder(parent)?;
+        let cover_dir = self.cover_dir.clone();
+        let tags = read_tags(&path);
+        let title = tags
+            .as_ref()
+            .and_then(|tags| tags.title.clone())
+            .or_else(|| {
+                path.file_stem()
+                    .and_then(|v| v.to_str())
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_default();
+        let artist_name = tags
+            .as_ref()
+            .and_then(|tags| tags.artist.as_deref())
+            .filter(|name| !name.trim().is_empty());
+        let album_name = tags
+            .as_ref()
+            .and_then(|tags| tags.album.as_deref())
+            .filter(|name| !name.trim().is_empty());
+        let search_text = build_search_text(&title, artist_name, album_name);
+
+        let tx = self.conn.transaction()?;
+        let exists = tx
+            .query_row(
+                "SELECT 1 FROM tracks WHERE path = ?1",
+                params![path_string],
+                |_| Ok(true),
+            )
+            .optional()?
+            .unwrap_or(false);
+        let mut artist_cache: HashMap<String, i64> = HashMap::new();
+        let mut album_cache: HashMap<(String, Option<i64>), i64> = HashMap::new();
+        let artist = match artist_name {
+            Some(name) => Some(artist_id(&tx, &mut artist_cache, name)?),
+            None => None,
+        };
+        let album = match album_name {
+            Some(name) => Some(album_id(
+                &tx,
+                &mut album_cache,
+                name,
+                artist,
+                tags.as_ref().and_then(|tags| tags.year),
+            )?),
+            None => None,
+        };
+        if let (Some(album), Some(cover_dir), Some(tags)) =
+            (album, cover_dir.as_deref(), tags.as_ref())
+        {
+            let existing: Option<String> = tx
+                .query_row(
+                    "SELECT COALESCE(cover_path, '') FROM albums WHERE id = ?1",
+                    params![album],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if existing.as_deref().unwrap_or("").is_empty() {
+                if let Some(bytes) = tags.cover.as_deref() {
+                    let ext = match tags.cover_mime.as_deref() {
+                        Some("image/png") => "png",
+                        Some("image/gif") => "gif",
+                        Some("image/bmp") => "bmp",
+                        Some("image/tiff") => "tiff",
+                        _ => "jpg",
+                    };
+                    let hash = blake3::hash(bytes).to_hex().to_string();
+                    std::fs::create_dir_all(cover_dir)?;
+                    let file = cover_dir.join(format!("{hash}.{ext}"));
+                    if !file.exists() {
+                        std::fs::write(&file, bytes)?;
+                    }
+                    tx.execute(
+                        "UPDATE albums SET cover_path = ?1 WHERE id = ?2",
+                        params![file.to_string_lossy(), album],
+                    )?;
+                }
+            }
+        }
+        tx.execute(
+            "INSERT INTO tracks(
+                folder_id, path, title, search_text, artist_id, album_id, track_no, disc_no,
+                genre, year, duration_ms, sample_rate, channels, bitrate,
+                format, size_bytes, mtime, album_artist, added_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
+                datetime('now'), datetime('now'))
+             ON CONFLICT(path) DO UPDATE SET
+                folder_id = excluded.folder_id,
+                title = excluded.title,
+                search_text = excluded.search_text,
+                artist_id = excluded.artist_id,
+                album_id = excluded.album_id,
+                track_no = excluded.track_no,
+                disc_no = excluded.disc_no,
+                genre = excluded.genre,
+                year = excluded.year,
+                duration_ms = excluded.duration_ms,
+                sample_rate = excluded.sample_rate,
+                channels = excluded.channels,
+                bitrate = excluded.bitrate,
+                format = excluded.format,
+                size_bytes = excluded.size_bytes,
+                mtime = excluded.mtime,
+                album_artist = excluded.album_artist,
+                updated_at = datetime('now')",
+            params![
+                folder_id,
+                path_string,
+                title,
+                search_text,
+                artist,
+                album,
+                tags.as_ref().and_then(|tags| tags.track_no),
+                tags.as_ref().and_then(|tags| tags.disc_no),
+                tags.as_ref().and_then(|tags| tags.genre.clone()),
+                tags.as_ref().and_then(|tags| tags.year),
+                tags.as_ref().and_then(|tags| tags.duration_ms),
+                tags.as_ref().and_then(|tags| tags.sample_rate),
+                tags.as_ref().and_then(|tags| tags.channels),
+                tags.as_ref().and_then(|tags| tags.bitrate),
+                ext,
+                size,
+                mtime,
+                tags.as_ref().and_then(|tags| tags.album_artist.clone())
+            ],
+        )?;
+        tx.commit()?;
+        Ok(!exists)
+    }
+
     pub fn add_folder(&self, path: &Path) -> Result<i64, LibraryError> {
         let path = path.canonicalize()?;
         self.conn.execute(

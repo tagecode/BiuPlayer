@@ -609,11 +609,42 @@ pub fn restore_last_session(app: &AppHandle) {
     }
 }
 
+/// What the event loop should do after a playback error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FailureAction {
+    /// Move to the next queue item.
+    Skip,
+    /// Three consecutive failures: stop and wait for the user.
+    Stop,
+}
+
+/// Counts consecutive decode/playback failures. A single success resets it.
+#[derive(Debug, Default)]
+struct FailureTracker {
+    consecutive: u32,
+}
+
+impl FailureTracker {
+    fn record_failure(&mut self) -> FailureAction {
+        self.consecutive += 1;
+        if self.consecutive >= 3 {
+            self.consecutive = 0;
+            FailureAction::Stop
+        } else {
+            FailureAction::Skip
+        }
+    }
+
+    fn reset(&mut self) {
+        self.consecutive = 0;
+    }
+}
+
 /// Emits `player:state` at ~4 Hz. Handles EOF auto-advance, bad-file skipping
 /// (up to three consecutive failures) and output-device loss recovery.
 pub fn spawn_player_events(app: AppHandle) {
     std::thread::spawn(move || {
-        let mut failures = 0u32;
+        let mut failures = FailureTracker::default();
         let mut last_recovery = std::time::Instant::now();
         loop {
             std::thread::sleep(Duration::from_millis(250));
@@ -638,7 +669,7 @@ pub fn spawn_player_events(app: AppHandle) {
                     last_recovery = std::time::Instant::now();
                     match recover_output(&player_state, &queue_state) {
                         Ok(()) => {
-                            failures = 0;
+                            failures.reset();
                             tracing::warn!("output device lost; rebuilt default stream");
                         }
                         Err(err) => {
@@ -647,7 +678,7 @@ pub fn spawn_player_events(app: AppHandle) {
                     }
                 }
             } else if current.finished {
-                failures = 0;
+                failures.reset();
                 let next = queue_lock(&queue_state).next_index();
                 match next {
                     Some(index) => {
@@ -663,26 +694,30 @@ pub fn spawn_player_events(app: AppHandle) {
                     }
                 }
             } else if current.state == PlaybackState::Error.as_str() {
-                failures += 1;
+                let action = failures.record_failure();
                 tracing::warn!(
                     path = %current.path.as_deref().unwrap_or("-"),
                     error = %current.error.as_deref().unwrap_or("unknown"),
-                    failures,
+                    action = ?action,
                     "playback failed"
                 );
-                if failures >= 3 {
-                    failures = 0;
-                    if let Some(player) = lock(&player_state).as_ref() {
-                        player.stop();
+                match action {
+                    FailureAction::Stop => {
+                        if let Some(player) = lock(&player_state).as_ref() {
+                            player.stop();
+                        }
+                        tracing::error!("stopped after three consecutive playback failures");
                     }
-                    tracing::error!("stopped after three consecutive playback failures");
-                } else if let Some(index) = queue_lock(&queue_state).next_index() {
-                    if let Err(err) = play_index(index, &player_state, &queue_state) {
-                        tracing::warn!(error = %err, "skip after playback failure failed");
+                    FailureAction::Skip => {
+                        if let Some(index) = queue_lock(&queue_state).next_index() {
+                            if let Err(err) = play_index(index, &player_state, &queue_state) {
+                                tracing::warn!(error = %err, "skip after playback failure failed");
+                            }
+                        }
                     }
                 }
             } else if matches!(current.state.as_str(), "playing" | "paused" | "loading") {
-                failures = 0;
+                failures.reset();
             }
 
             let dto = snapshot(&player_state, &queue_state);
@@ -706,5 +741,27 @@ mod tests {
         assert_eq!(dto.state, "idle");
         assert_eq!(dto.position_ms, 0.0);
         assert_eq!(dto.mode, "sequential");
+    }
+
+    #[test]
+    fn skips_two_bad_files_and_stops_on_the_third() {
+        let mut tracker = FailureTracker::default();
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        assert_eq!(tracker.record_failure(), FailureAction::Stop);
+
+        // Stopping resets the counter: the next error is skipped again.
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+    }
+
+    #[test]
+    fn a_successful_track_resets_the_failure_streak() {
+        let mut tracker = FailureTracker::default();
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        tracker.reset();
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        assert_eq!(tracker.record_failure(), FailureAction::Skip);
+        assert_eq!(tracker.record_failure(), FailureAction::Stop);
     }
 }

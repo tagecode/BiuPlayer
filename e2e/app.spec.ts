@@ -69,6 +69,23 @@ test("theme toggle flips data-theme and persists the mode", async ({ page }) => 
   await expect(html).toHaveAttribute("data-theme", initial ?? "dark");
 });
 
+test("theme is applied before the bundle paints (no white flash)", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("biu.themeMode", "light");
+  });
+  await page.goto("/");
+  await expect(page.locator(".shell")).toBeVisible();
+  const boot = await page.evaluate(
+    () =>
+      (window as unknown as { __biuThemeBoot?: { theme: string; background: string } })
+        .__biuThemeBoot,
+  );
+  expect(boot?.theme).toBe("light");
+  expect(boot?.background).toBe("#f6f7f9");
+  const attr = await page.locator("html").getAttribute("data-theme");
+  expect(["light", "dark"]).toContain(attr);
+});
+
 test("album artist list opens a filtered detail page", async ({ page }) => {
   await page.goto("/#/library/album-artists");
   const link = page.getByRole("link", { name: /周杰伦/ });

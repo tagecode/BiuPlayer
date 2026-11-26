@@ -302,7 +302,7 @@ export function Shell() {
       }
       if (folders.length > 0) {
         try {
-          await commands.libraryScanStart(folders[0]);
+          await commands.libraryScanStartMany(folders);
           setNotice(t("shell.scanNotice", { path: folders[0] }));
         } catch (error) {
           setNotice(formatError(error, t));

@@ -9,6 +9,7 @@ import {
   type YearDto,
 } from "../bindings";
 import { LibraryNav } from "../components/LibraryNav";
+import { ShowMore, useLoadMore } from "../components/ShowMore";
 import { TrackTable } from "../components/TrackTable";
 import { formatError } from "../errors";
 import { useI18n } from "../i18n";
@@ -63,6 +64,7 @@ export function Genres() {
   const { t } = useI18n();
   const [rows, setRows] = useState<GenreDto[]>([]);
   const [message, setMessage] = useState("");
+  const { visible, hasMore, loadMore } = useLoadMore(rows.length);
 
   useEffect(() => {
     commands
@@ -80,12 +82,13 @@ export function Genres() {
         <p className="muted">{t("genres.empty")}</p>
       ) : (
         <div className="tile-grid">
-          {rows.map((row) => (
+          {rows.slice(0, visible).map((row) => (
             <Link key={row.name} to={`/library/genres/${encodeURIComponent(row.name)}`} className="tile">
               <strong>{row.name}</strong>
               <span className="muted">{row.track_count ?? 0} {t("common.tracksSuffix")}</span>
             </Link>
           ))}
+          <ShowMore hasMore={hasMore} onClick={loadMore} />
         </div>
       )}
     </section>
@@ -114,6 +117,7 @@ export function Years() {
   const { t } = useI18n();
   const [rows, setRows] = useState<YearDto[]>([]);
   const [message, setMessage] = useState("");
+  const { visible, hasMore, loadMore } = useLoadMore(rows.length);
 
   useEffect(() => {
     commands
@@ -131,12 +135,13 @@ export function Years() {
         <p className="muted">{t("years.empty")}</p>
       ) : (
         <div className="tile-grid">
-          {rows.map((row) => (
+          {rows.slice(0, visible).map((row) => (
             <Link key={row.year} to={`/library/years/${row.year}`} className="tile">
               <strong>{row.year}</strong>
               <span className="muted">{row.track_count ?? 0} {t("common.tracksSuffix")}</span>
             </Link>
           ))}
+          <ShowMore hasMore={hasMore} onClick={loadMore} />
         </div>
       )}
     </section>
@@ -165,6 +170,7 @@ export function Folders() {
   const { t } = useI18n();
   const [rows, setRows] = useState<FolderDto[]>([]);
   const [message, setMessage] = useState("");
+  const { visible, hasMore, loadMore } = useLoadMore(rows.length);
 
   useEffect(() => {
     commands
@@ -182,7 +188,7 @@ export function Folders() {
         <p className="muted">{t("folders.empty")}</p>
       ) : (
         <ul className="folder-list">
-          {rows.map((row) => (
+          {rows.slice(0, visible).map((row) => (
             <li key={row.id}>
               <Link to={`/library/folders/${row.id}`} className="folder-row">
                 <span className="mono">{row.path}</span>
@@ -190,6 +196,7 @@ export function Folders() {
               </Link>
             </li>
           ))}
+          <ShowMore hasMore={hasMore} onClick={loadMore} />
         </ul>
       )}
     </section>

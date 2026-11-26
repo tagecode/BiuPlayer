@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { commands, type AlbumDto } from "../bindings";
 import { AlbumCover } from "../components/AlbumCover";
 import { LibraryNav } from "../components/LibraryNav";
+import { ShowMore, useLoadMore } from "../components/ShowMore";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
 
@@ -10,6 +11,7 @@ export function Albums() {
   const { t } = useI18n();
   const [albums, setAlbums] = useState<AlbumDto[]>([]);
   const [message, setMessage] = useState("");
+  const { visible, hasMore, loadMore } = useLoadMore(albums.length);
 
   useEffect(() => {
     commands
@@ -38,7 +40,7 @@ export function Albums() {
         </div>
       ) : (
         <div className="album-grid">
-          {albums.map((album) => (
+          {albums.slice(0, visible).map((album) => (
             <Link key={album.id} to={`/library/albums/${album.id}`} className="album-card">
               <AlbumCover albumId={album.id} title={album.title} />
               <strong>{album.title}</strong>
@@ -49,6 +51,7 @@ export function Albums() {
               </span>
             </Link>
           ))}
+          <ShowMore hasMore={hasMore} onClick={loadMore} />
         </div>
       )}
     </section>

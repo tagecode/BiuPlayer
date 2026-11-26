@@ -19,7 +19,31 @@ pub fn app_info(app: AppHandle, paths: State<'_, AppPathsState>) -> AppInfo {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         log_dir,
+        build_commit: env!("BIU_GIT_COMMIT").to_string(),
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn portable_flag_set(enabled: bool) -> Result<bool, CommandError> {
+    let exe = std::env::current_exe()
+        .map_err(|err| CommandError::internal(format!("cannot locate the executable: {err}")))?;
+    let flag = exe
+        .parent()
+        .map(|dir| dir.join("portable.flag"))
+        .ok_or_else(|| CommandError::internal("cannot locate the application directory"))?;
+    if enabled {
+        std::fs::write(&flag, b"enabled by settings\n").map_err(|err| {
+            CommandError::internal(format!("cannot write {}: {err}", flag.display()))
+        })?;
+        tracing::info!(path = %flag.display(), "portable mode enabled");
+    } else if flag.exists() {
+        std::fs::remove_file(&flag).map_err(|err| {
+            CommandError::internal(format!("cannot remove {}: {err}", flag.display()))
+        })?;
+        tracing::info!(path = %flag.display(), "portable mode disabled");
+    }
+    Ok(enabled)
 }
 
 #[tauri::command]

@@ -10,7 +10,7 @@ import {
 import { LibraryNav } from "../components/LibraryNav";
 import { useI18n } from "../i18n";
 import { formatError } from "../errors";
-import { HighlightText } from "../components/TrackTable";
+import { HighlightText, isPinyinQuery } from "../components/TrackTable";
 
 const PAGE_SIZE = 200;
 const ROW_HEIGHT = 36;
@@ -200,6 +200,31 @@ export function Library() {
     }
   }
 
+  async function pickFiles() {
+    try {
+      const picked = await open({
+        directory: false,
+        multiple: true,
+        title: t("library.pickFiles"),
+        filters: [
+          {
+            name: "Audio",
+            extensions: ["mp3", "flac", "wav", "m4a", "mp4", "aac", "ogg", "oga", "aif", "aiff"],
+          },
+        ],
+      });
+      const paths = (Array.isArray(picked) ? picked : picked ? [picked] : []).filter(
+        (path): path is string => typeof path === "string" && path.length > 0,
+      );
+      if (paths.length === 0) return;
+      const imported = await commands.libraryImportFiles(paths);
+      setMessage(t("library.importedFiles", { count: imported ?? 0 }));
+      await refresh();
+    } catch (error) {
+      setMessage(formatError(error, t));
+    }
+  }
+
   async function pauseScan() {
     try {
       setScan(await commands.libraryScanPause());
@@ -323,6 +348,9 @@ export function Library() {
           <button type="button" className="ghost" onClick={pickFolder} disabled={busy}>
             {t("library.pickFolder")}
           </button>
+          <button type="button" className="ghost" onClick={() => void pickFiles()} disabled={busy}>
+            {t("library.pickFiles")}
+          </button>
           <button type="button" onClick={() => void startScan()} disabled={busy || scan?.state === "paused"}>
             {busy ? t("library.scanning") : t("library.addScan")}
           </button>
@@ -331,7 +359,7 @@ export function Library() {
               {t("library.pause")}
             </button>
           )}
-          {scan?.state === "paused" && (
+          {(scan?.state === "paused" || scan?.state === "cancelled") && (
             <button type="button" className="ghost" onClick={resumeScan}>
               {t("library.resume")}
             </button>
@@ -412,7 +440,7 @@ export function Library() {
                 {hits.map((track) => (
                   <tr key={track.path}>
                     <td title={track.path}>
-                      <HighlightText text={track.title} query={query} />
+                      <HighlightText text={track.title} query={query} markAllIfMiss={isPinyinQuery(query)} />
                     </td>
                     <td>
                       <HighlightText text={track.artist ?? t("player.unknownArtist")} query={query} />
@@ -503,7 +531,7 @@ export function Library() {
                       {track ? (
                         <>
                           <span className="track-title" title={track.path}>
-                            <HighlightText text={track.title} query={query} />
+                            <HighlightText text={track.title} query={query} markAllIfMiss={isPinyinQuery(query)} />
                           </span>
                           <span>
                             <HighlightText text={track.artist ?? t("player.unknownArtist")} query={query} />

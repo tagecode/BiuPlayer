@@ -13,6 +13,7 @@ export const commands = {
 	crashReport: (options?: InvokeOptions) => __TAURI_INVOKE<CrashReport | null>("crash_report", undefined, options),
 	exportDiagnostics: (options?: InvokeOptions) => __TAURI_INVOKE<string>("export_diagnostics", undefined, options),
 	startupArgs: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("startup_args", undefined, options),
+	portableFlagSet: (enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<boolean>("portable_flag_set", { enabled }, options),
 	/**
 	 *  应用原生窗口不透明度。返回是否由平台原生实现支持。
 	 * 
@@ -47,7 +48,9 @@ export const commands = {
 	playerQueueMove: (from: number | null, to: number | null, options?: InvokeOptions) => __TAURI_INVOKE<QueueSnapshotDto_Serialize>("player_queue_move", { from, to }, options),
 	playerSnapshot: (options?: InvokeOptions) => __TAURI_INVOKE<PlayerStateDto_Serialize>("player_snapshot", undefined, options),
 	libraryAddFolder: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanDto>("library_add_folder", { path }, options),
+	libraryImportFiles: (paths: string[], options?: InvokeOptions) => __TAURI_INVOKE<number | null>("library_import_files", { paths }, options),
 	libraryScanStart: (path: string, options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_start", { path }, options),
+	libraryScanStartMany: (paths: string[], options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_start_many", { paths }, options),
 	libraryRemoveFolder: (id: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("library_remove_folder", { id }, options),
 	libraryScanStatus: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_status", undefined, options),
 	libraryScanPause: (options?: InvokeOptions) => __TAURI_INVOKE<LibraryScanStatusDto_Serialize>("library_scan_pause", undefined, options),
@@ -121,6 +124,7 @@ export type AppInfo = {
 	os: string,
 	arch: string,
 	log_dir: string,
+	build_commit: string,
 };
 
 export type AppPathsInfo = {

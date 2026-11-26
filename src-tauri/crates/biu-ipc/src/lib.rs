@@ -9,6 +9,7 @@ pub struct AppInfo {
     pub os: String,
     pub arch: String,
     pub log_dir: String,
+    pub build_commit: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
